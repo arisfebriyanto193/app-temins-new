@@ -654,7 +654,7 @@ const styles = StyleSheet.create({
   // PICKER
   pickerContainer: { 
     flex: 1, 
-    backgroundColor: '#f1f5f9', 
+    backgroundColor: '#ffffffff', 
     borderRadius: 8, 
     height: 50, 
     justifyContent: 'center',

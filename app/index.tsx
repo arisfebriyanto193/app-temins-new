@@ -24,9 +24,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 
 // Placeholder logo - ganti dengan path logo Anda
-// const LOGO = require('../assets/images/logo.png');
+const LOGO = require('../assets/images/logo.png');
 
-const LOGO = 'a';
+//const LOGO = 'a';
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();

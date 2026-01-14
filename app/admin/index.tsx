@@ -280,7 +280,7 @@ export default function AdminDashboard() {
     // Ambil user yang status alatnya aktif
     const activeUsers = userList.filter(u => u.status === "1");
     if (activeUsers.length === 0) {
-      console.log('⚠️ Tidak ada perangkat aktif');
+   //   console.log('⚠️ Tidak ada perangkat aktif');
       return;
     }
 
@@ -296,7 +296,7 @@ export default function AdminDashboard() {
       }
     );
 
-    console.log('📡 RESPONSE API:', res.data);
+  //  console.log('📡 RESPONSE API:', res.data);
 
     // Map data terakhir per device
 const latestMap = {};
@@ -341,21 +341,21 @@ if (res.data?.status && Array.isArray(res.data.data)) {
     const onlineUsers = updated.filter(u => u.is_online);
     const offlineUsers = updated.filter(u => !u.is_online);
 
-    console.log('🕒 CHECK TIME:', new Date().toLocaleString());
+   // console.log('🕒 CHECK TIME:', new Date().toLocaleString());
 
-    console.log('🟢 ONLINE USERS:', onlineUsers.map(u => ({
-      username: u.username,
-      device_id: u.device_unique_id,
-      last_seen: u.last_data?.recorded_at ?? 'NO DATA'
-    })));
+  //  console.log('🟢 ONLINE USERS:', onlineUsers.map(u => ({
+    //  username: u.username,
+   //   device_id: u.device_unique_id,
+   //   last_seen: u.last_data?.recorded_at ?? 'NO DATA'
+  //  })));
 
-    console.log('🔴 OFFLINE USERS:', offlineUsers.map(u => ({
-      username: u.username,
-      device_id: u.device_unique_id,
-      last_seen: u.last_data?.recorded_at ?? 'NO DATA'
-    })));
+  //  console.log('🔴 OFFLINE USERS:', offlineUsers.map(u => ({
+  //    username: u.username,
+   //   device_id: u.device_unique_id,
+ //     last_seen: u.last_data?.recorded_at ?? 'NO DATA'
+   // })));
 
-    console.log(`📊 SUMMARY → ONLINE: ${online} | OFFLINE: ${offline}`);
+   // console.log(`📊 SUMMARY → ONLINE: ${online} | OFFLINE: ${offline}`);
 
     // Update state
     setUsers(updated);
@@ -480,7 +480,8 @@ if (res.data?.status && Array.isArray(res.data.data)) {
           timezone: res.data.timezone || 'WIB',
           statusAlat: res.data.statusAlat || '1',
           awlrData: res.data.awlrData || '',
-          awlrStatusData: res.data.awlrStatusData || '1'
+          awlrStatusData: res.data.awlrStatusData || '1',
+          awlrJenis: res.data.awlrJenis || 'sungai',
         });
         setActiveTab('general');
         setModalMode('edit');
@@ -1261,6 +1262,17 @@ if (res.data?.status && Array.isArray(res.data.data)) {
                   placeholder="0" 
                   keyboardType="numeric"
                 />
+                <Text style={styles.inputLabel}>Jenis AWLR</Text>
+               <View style={styles.pickerContainer}>
+                  <Picker 
+                    selectedValue={formData.awlrJenis} 
+                    onValueChange={(v) => setFormData({...formData, awlrJenis: v})}
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Sungai" value="sungai" />
+                    <Picker.Item label="Sumur" value="sumur" />
+                  </Picker>
+                </View>
                 
                 <Text style={styles.inputLabel}>Data Sensor AWLR</Text>
                 <View style={styles.pickerContainer}>
@@ -2149,6 +2161,7 @@ const styles = StyleSheet.create({
     color: '#0f172a',
   },
   pickerContainer: {
+    color: '#0f172a',
     backgroundColor: '#f8fafc',
     borderRadius: 12,
     borderWidth: 1,
