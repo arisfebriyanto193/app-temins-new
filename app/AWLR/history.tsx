@@ -669,12 +669,13 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
   },
   picker: { 
-    color: '#000000',
+    color: '#000000ff',
     height: 50,
   },
   pickerItem: {
-    color: '#000000',
+    color: '#000000ff',
     fontSize: 14,
+    backgroundColor: '#ffffffff',
   },
   
   // BUTTONS
@@ -842,7 +843,7 @@ const styles = StyleSheet.create({
   modalTitle: { 
     fontSize: 20, 
     fontWeight: 'bold',
-    color: '#0f172a',
+    color: '#235adbff',
   },
   modalSubtitle: {
     fontSize: 14,

@@ -539,6 +539,7 @@ export default function AWLRDashboard() {
       <StatusBar backgroundColor="#f8fafc" barStyle="dark-content" />
 
       {/* Header */}
+      <Text>Test</Text>
       <View style={styles.header}>
 
 

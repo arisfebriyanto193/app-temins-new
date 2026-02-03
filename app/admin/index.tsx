@@ -1,149 +1,69 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  Alert,
-  ActivityIndicator,
-  SafeAreaView,
-  StatusBar,
-  Dimensions,
-  Switch,
-  RefreshControl,
-  Platform,
-  Animated,
-  Easing,
-} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
-import { 
-  Plus, 
-  RotateCw, 
-  Cpu, 
-  Wifi, 
-  WifiOff, 
-  MapPin, 
-  Settings, 
-  Key, 
-  Trash2, 
-  X, 
-  Save, 
+import {
+  Battery,
   ChevronDown,
-  CheckCircle2,
-  XCircle,
-  User,
-  Phone,
-  Smartphone,
-  Building,
-  Map,
-  Clock,
-  Power,
-  AlertCircle,
-  Info,
+  Cloud,
+  Cpu,
+  Droplets,
   Eye,
   EyeOff,
   Filter,
-  Search,
-  ChevronRight,
-  BarChart3,
-  ToggleLeft,
-  ToggleRight,
-  Ruler,
-  Waves,
-  Cloud,
-  Thermometer,
-  Droplets,
-  Wind,
-  Sun,
-  Moon,
-  Zap,
-  Battery,
-  Signal,
-  HardDrive,
-  Server,
-  Database,
+  Key,
+  MapPin,
   Network,
-  Globe,
-  Shield,
-  Lock,
-  Unlock,
-  Download,
-  Upload,
-  Wifi as WifiIcon,
-  Bluetooth,
-  Radio,
-  Satellite,
-  MessageSquare,
-  Bell,
-  BellOff,
-  Volume2,
-  VolumeX,
-  Mic,
-  MicOff,
-  Video,
-  VideoOff,
-  Camera,
-  CameraOff,
-  RadioTower,
-  SatelliteDish,
-  Navigation,
-  Compass,
-  Anchor,
-  Ship,
-  Car,
-  Bike,
-  Truck,
-  Train,
-  Plane,
-  Rocket,
-  Home,
-  Factory,
-  Hospital,
-  School,
-  Store,
-  Coffee,
-  Tree,
-  Mountain,
-  Umbrella,
-  CloudRain,
-  CloudSnow,
-  CloudLightning,
-  CloudFog,
-  CloudSun,
-  CloudMoon,
-  Star,
-  Heart,
-  Flag,
-  Award,
-  Trophy,
-  Crown,
-  Target,
-  Crosshair,
-  Radar,
-  ShieldAlert,
-  ShieldCheck,
-  ShieldOff,
-  Fingerprint,
-  QrCode,
-  Barcode,
-  CreditCard,
-  Wallet,
-  KeyRound,
-  KeySquare,
-  Scan,
-  ScanFace,
-  ScanLine,
-  Camera as CameraIcon,
-  QrCode as QrCodeIcon,
+  Plus,
+  Power,
+  RotateCw,
+  Ruler,
+  Save,
+  Search,
+  Settings,
+  Sun,
+  Thermometer,
+  Trash2,
+  Waves,
+  Wifi,
+  WifiOff,
+  Wind,
+  X
 } from 'lucide-react-native';
-import { Picker } from '@react-native-picker/picker';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  Easing,
+  Modal,
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+
+
+interface SensorParam {
+  id?: string;
+  label: string;
+  topic: string;
+  unit: string;
+  is_visible: boolean;
+  is_chart: boolean;
+  chart_order: number;
+  chart_data: string;
+}
 
 export default function AdminDashboard() {
   // --- States ---
@@ -158,21 +78,21 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'online', 'offline', 'active', 'inactive'
   const [showPassword, setShowPassword] = useState(false);
   const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
-  
+
   // Modals & Forms
   const [modalMode, setModalMode] = useState('none'); // 'none' | 'add' | 'edit' | 'password' | 'details'
   const [selectedUser, setSelectedUser] = useState(null);
   const [formData, setFormData] = useState({});
-  const [paramsList, setParamsList] = useState([]);
+  const [paramsList, setParamsList] = useState<SensorParam[]>([]);
   const [activeTab, setActiveTab] = useState('general'); // 'general', 'location', 'advanced', 'sensors'
-  
+
   // Animation
   const spinAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
 
   // API Config
-  const BASE_URL = `${process.env.EXPO_PUBLIC_API_URL}`; 
+  const BASE_URL = `${process.env.EXPO_PUBLIC_API_URL}`;
   const DATA_URL = `${process.env.EXPO_PUBLIC_API_DATA}`;
   const API_TOKEN = `${process.env.EXPO_PUBLIC_API_TOKEN}`;
 
@@ -198,7 +118,7 @@ export default function AdminDashboard() {
       duration: 500,
       useNativeDriver: true,
     }).start();
-    
+
     fetchData();
     fetchTemplates();
   }, []);
@@ -213,7 +133,7 @@ export default function AdminDashboard() {
   };
 
   const getDeviceIcon = (type) => {
-    switch(type?.toLowerCase()) {
+    switch (type?.toLowerCase()) {
       case 'awlr': return Waves;
       case 'aws': return Cloud;
       case 'weather': return Thermometer;
@@ -246,7 +166,7 @@ export default function AdminDashboard() {
       const res = await axios.get(`${BASE_URL}/api-app/admin/ds.php`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       if (res.data.status) {
         setUsers(res.data.data);
         setFilteredUsers(res.data.data);
@@ -272,106 +192,106 @@ export default function AdminDashboard() {
     } catch (e) { console.error(e); }
   };
 
- const checkOnlineStatus = async (userList) => {
-  setCheckingStatus(true);
-  startSpinAnimation();
+  const checkOnlineStatus = async (userList) => {
+    setCheckingStatus(true);
+    startSpinAnimation();
 
-  try {
-    // Ambil user yang status alatnya aktif
-    const activeUsers = userList.filter(u => u.status === "1");
-    if (activeUsers.length === 0) {
-   //   console.log('⚠️ Tidak ada perangkat aktif');
-      return;
-    }
-
-    // Gabungkan device ID untuk request API
-    const deviceIds = activeUsers
-      .map(u => u.device_unique_id)
-      .join(",");
-
-    const res = await axios.get(
-      `${DATA_URL}/api/get-data?device_id=${deviceIds}&mode=latest&zonawaktu=WIB`,
-      {
-        headers: { Authorization: `Bearer ${API_TOKEN}` }
+    try {
+      // Ambil user yang status alatnya aktif
+      const activeUsers = userList.filter(u => u.status === "1");
+      if (activeUsers.length === 0) {
+        //   console.log('⚠️ Tidak ada perangkat aktif');
+        return;
       }
-    );
 
-  //  console.log('📡 RESPONSE API:', res.data);
+      // Gabungkan device ID untuk request API
+      const deviceIds = activeUsers
+        .map(u => u.device_unique_id)
+        .join(",");
 
-    // Map data terakhir per device
-const latestMap = {};
-if (res.data?.status && Array.isArray(res.data.data)) {
-  res.data.data.forEach(d => {
-    latestMap[d.device_unique_id] = d;
-  });
-}
+      const res = await axios.get(
+        `${DATA_URL}/api/get-data?device_id=${deviceIds}&mode=latest&zonawaktu=WIB`,
+        {
+          headers: { Authorization: `Bearer ${API_TOKEN}` }
+        }
+      );
+
+      //  console.log('📡 RESPONSE API:', res.data);
+
+      // Map data terakhir per device
+      const latestMap = {};
+      if (res.data?.status && Array.isArray(res.data.data)) {
+        res.data.data.forEach(d => {
+          latestMap[d.device_unique_id] = d;
+        });
+      }
 
 
-    let online = 0;
-    let offline = 0;
+      let online = 0;
+      let offline = 0;
 
-    // Hitung status online / offline
-    const updated = userList.map(u => {
-      // Jika alat non-aktif → OFFLINE
-      if (u.status === "0") {
-        offline++;
+      // Hitung status online / offline
+      const updated = userList.map(u => {
+        // Jika alat non-aktif → OFFLINE
+        if (u.status === "0") {
+          offline++;
+          return {
+            ...u,
+            is_online: false,
+            last_data: null
+          };
+        }
+
+        const last = latestMap[u.device_unique_id];
+
+        const isOnline = last
+          ? isDeviceOnline(last.recorded_at)
+          : false;
+
+        isOnline ? online++ : offline++;
+
         return {
           ...u,
-          is_online: false,
-          last_data: null
+          is_online: isOnline,
+          last_data: last ?? null
         };
-      }
+      });
 
-    const last = latestMap[u.device_unique_id];
+      // 🔍 LOG DETAIL ONLINE / OFFLINE
+      const onlineUsers = updated.filter(u => u.is_online);
+      const offlineUsers = updated.filter(u => !u.is_online);
 
-      const isOnline = last
-        ? isDeviceOnline(last.recorded_at)
-        : false;
+      // console.log('🕒 CHECK TIME:', new Date().toLocaleString());
 
-      isOnline ? online++ : offline++;
+      //  console.log('🟢 ONLINE USERS:', onlineUsers.map(u => ({
+      //  username: u.username,
+      //   device_id: u.device_unique_id,
+      //   last_seen: u.last_data?.recorded_at ?? 'NO DATA'
+      //  })));
 
-      return {
-        ...u,
-        is_online: isOnline,
-        last_data: last ?? null
-      };
-    });
+      //  console.log('🔴 OFFLINE USERS:', offlineUsers.map(u => ({
+      //    username: u.username,
+      //   device_id: u.device_unique_id,
+      //     last_seen: u.last_data?.recorded_at ?? 'NO DATA'
+      // })));
 
-    // 🔍 LOG DETAIL ONLINE / OFFLINE
-    const onlineUsers = updated.filter(u => u.is_online);
-    const offlineUsers = updated.filter(u => !u.is_online);
+      // console.log(`📊 SUMMARY → ONLINE: ${online} | OFFLINE: ${offline}`);
 
-   // console.log('🕒 CHECK TIME:', new Date().toLocaleString());
+      // Update state
+      setUsers(updated);
+      setFilteredUsers(updated);
+      setDeviceStatus(prev => ({
+        ...prev,
+        online,
+        offline
+      }));
 
-  //  console.log('🟢 ONLINE USERS:', onlineUsers.map(u => ({
-    //  username: u.username,
-   //   device_id: u.device_unique_id,
-   //   last_seen: u.last_data?.recorded_at ?? 'NO DATA'
-  //  })));
-
-  //  console.log('🔴 OFFLINE USERS:', offlineUsers.map(u => ({
-  //    username: u.username,
-   //   device_id: u.device_unique_id,
- //     last_seen: u.last_data?.recorded_at ?? 'NO DATA'
-   // })));
-
-   // console.log(`📊 SUMMARY → ONLINE: ${online} | OFFLINE: ${offline}`);
-
-    // Update state
-    setUsers(updated);
-    setFilteredUsers(updated);
-    setDeviceStatus(prev => ({
-      ...prev,
-      online,
-      offline
-    }));
-
-  } catch (error) {
-    console.error('❌ checkOnlineStatus error:', error);
-  } finally {
-    setCheckingStatus(false);
-  }
-};
+    } catch (error) {
+      console.error('❌ checkOnlineStatus error:', error);
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
 
 
   const refreshOnlineStatus = async () => {
@@ -388,7 +308,7 @@ if (res.data?.status && Array.isArray(res.data.data)) {
   // --- Filter Functions ---
   const filterUsers = () => {
     let filtered = users;
-    
+
     // Search filter
     if (searchQuery) {
       filtered = filtered.filter(user =>
@@ -398,9 +318,9 @@ if (res.data?.status && Array.isArray(res.data.data)) {
         user.city?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
-    
+
     // Status filter
-    switch(statusFilter) {
+    switch (statusFilter) {
       case 'online':
         filtered = filtered.filter(u => u.is_online);
         break;
@@ -416,7 +336,7 @@ if (res.data?.status && Array.isArray(res.data.data)) {
       default:
         break;
     }
-    
+
     setFilteredUsers(filtered);
   };
 
@@ -427,28 +347,28 @@ if (res.data?.status && Array.isArray(res.data.data)) {
   // --- Action Handlers ---
   const handleOpenAdd = () => {
     setFormData({
-      username: '', 
-      password: '', 
-      dev_name: '', 
+      username: '',
+      password: '',
+      dev_name: '',
       dev_type: '',
-      dev_id: '', 
-      owner: '', 
-      city: '', 
+      dev_id: '',
+      owner: '',
+      city: '',
       location: '',
-      internet_no: '', 
-      pic_name: '', 
-      pic_contact: '', 
-      timezone: 'WIB', 
+      internet_no: '',
+      pic_name: '',
+      pic_contact: '',
+      timezone: 'WIB',
       statusAlat: '1'
     });
-    setParamsList([{ 
-      label: '', 
-      topic: '', 
-      unit: '', 
-      is_visible: true, 
-      is_chart: false, 
-      chart_order: 1, 
-      chart_data: '' 
+    setParamsList([{
+      label: '',
+      topic: '',
+      unit: '',
+      is_visible: true,
+      is_chart: false,
+      chart_order: 1,
+      chart_data: ''
     }]);
     setActiveTab('general');
     setModalMode('add');
@@ -462,7 +382,7 @@ if (res.data?.status && Array.isArray(res.data.data)) {
       const res = await axios.get(`${BASE_URL}/api-app/admin/ds.php?action=get_device_config&device_unique_id=${user.device_unique_id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       if (res.data.status) {
         const mappedParams = res.data.settings.map(s => ({
           id: s.id,
@@ -522,12 +442,12 @@ if (res.data?.status && Array.isArray(res.data.data)) {
       if (modalMode === 'add') {
         payload = { ...payload, action: 'create_user', ...formData };
       } else if (modalMode === 'edit') {
-        payload = { 
-          ...payload, 
-          action: 'update_config', 
-          user_id: selectedUser.id, 
+        payload = {
+          ...payload,
+          action: 'update_config',
+          user_id: selectedUser.id,
           device_unique_id: selectedUser.device_unique_id,
-          ...formData 
+          ...formData
         };
       } else if (modalMode === 'password') {
         payload = { action: 'change_password', user_id: selectedUser.id, new_password: formData.new_password };
@@ -557,17 +477,19 @@ if (res.data?.status && Array.isArray(res.data.data)) {
       `Yakin hapus ${user.username}? Semua data akan hilang permanen.`,
       [
         { text: "Batal", style: "cancel" },
-        { text: "Hapus", style: "destructive", onPress: async () => {
-          try {
-            const token = await AsyncStorage.getItem('user_token');
-            await axios.post(`${BASE_URL}/api-app/admin/ds.php`, {
-              action: 'delete_user',
-              user_id: user.id,
-              device_unique_id: user.device_unique_id
-            }, { headers: { Authorization: `Bearer ${token}` } });
-            fetchData();
-          } catch (e) { Alert.alert("Error", "Gagal menghapus"); }
-        }}
+        {
+          text: "Hapus", style: "destructive", onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem('user_token');
+              await axios.post(`${BASE_URL}/api-app/admin/ds.php`, {
+                action: 'delete_user',
+                user_id: user.id,
+                device_unique_id: user.device_unique_id
+              }, { headers: { Authorization: `Bearer ${token}` } });
+              fetchData();
+            } catch (e) { Alert.alert("Error", "Gagal menghapus"); }
+          }
+        }
       ]
     );
   };
@@ -579,20 +501,22 @@ if (res.data?.status && Array.isArray(res.data.data)) {
         "Hapus parameter ini permanen dari database?",
         [
           { text: "Batal", style: "cancel" },
-          { text: "Hapus", style: "destructive", onPress: async () => {
-            try {
-              const token = await AsyncStorage.getItem('user_token');
-              await axios.post(`${BASE_URL}/api-app/admin/ds.php`, 
-                { action: 'delete_param', id: paramsList[index].id }, 
-                { headers: { Authorization: `Bearer ${token}` } }
-              );
-              const newList = [...paramsList];
-              newList.splice(index, 1);
-              setParamsList(newList);
-            } catch (e) { 
-              Alert.alert("Error", "Gagal menghapus parameter");
+          {
+            text: "Hapus", style: "destructive", onPress: async () => {
+              try {
+                const token = await AsyncStorage.getItem('user_token');
+                await axios.post(`${BASE_URL}/api-app/admin/ds.php`,
+                  { action: 'delete_param', id: paramsList[index].id },
+                  { headers: { Authorization: `Bearer ${token}` } }
+                );
+                const newList = [...paramsList];
+                newList.splice(index, 1);
+                setParamsList(newList);
+              } catch (e) {
+                Alert.alert("Error", "Gagal menghapus parameter");
+              }
             }
-          }}
+          }
         ]
       );
     } else {
@@ -603,9 +527,9 @@ if (res.data?.status && Array.isArray(res.data.data)) {
   };
 
   // --- UI Components ---
-  
+
   const StatCard = ({ label, value, subValue, icon: Icon, color, onPress }) => (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.statCard}
       onPress={onPress}
       activeOpacity={0.7}
@@ -621,37 +545,37 @@ if (res.data?.status && Array.isArray(res.data.data)) {
     </TouchableOpacity>
   );
 
- const FilterButton = ({ label, value, isActive }) => {
-  return (
-    <TouchableOpacity
-      activeOpacity={0.7}
-      style={[
-        styles.filterBtn,
-        isActive && styles.filterBtnActive,
-      ]}
-      onPress={() => setStatusFilter(value)}
-    >
-      <Text
+  const FilterButton = ({ label, value, isActive }) => {
+    return (
+      <TouchableOpacity
+        activeOpacity={0.7}
         style={[
-          styles.filterText,
-          isActive && styles.filterTextActive,
+          styles.filterBtn,
+          isActive && styles.filterBtnActive,
         ]}
-        numberOfLines={1}
+        onPress={() => setStatusFilter(value)}
       >
-        {String(label)}
-      </Text>
-    </TouchableOpacity>
-  );
-};
+        <Text
+          style={[
+            styles.filterText,
+            isActive && styles.filterTextActive,
+          ]}
+          numberOfLines={1}
+        >
+          {String(label)}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
 
   const DeviceCard = ({ user }) => {
     const DeviceIcon = getDeviceIcon(user.device_type);
     const statusColor = getStatusColor(user.status, user.is_online);
     const statusText = getStatusText(user.status, user.is_online);
-    
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.deviceCard}
         onPress={() => handleOpenDetails(user)}
         activeOpacity={0.9}
@@ -684,7 +608,7 @@ if (res.data?.status && Array.isArray(res.data.data)) {
             <MapPin size={14} color="#64748b" />
             <Text style={styles.infoText}>{user.city || 'No Location'}</Text>
           </View>
-          
+
           <View style={styles.idContainer}>
             <Text style={styles.idLabel}>Device ID:</Text>
             <Text style={styles.idValue}>{user.device_unique_id}</Text>
@@ -707,21 +631,21 @@ if (res.data?.status && Array.isArray(res.data.data)) {
         </View>
 
         <View style={styles.cardActions}>
-          <TouchableOpacity 
-            style={[styles.actionBtn, styles.btnConfig]} 
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.btnConfig]}
             onPress={() => handleOpenEdit(user)}
           >
             <Settings size={18} color="#4f46e5" />
             <Text style={styles.btnActionText}>Config</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.actionBtn, styles.btnPass]} 
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.btnPass]}
             onPress={() => { setSelectedUser(user); setModalMode('password'); }}
           >
             <Key size={18} color="#d97706" />
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.actionBtn, styles.btnTrash]} 
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.btnTrash]}
             onPress={() => handleDelete(user)}
           >
             <Trash2 size={18} color="#e11d48" />
@@ -734,16 +658,17 @@ if (res.data?.status && Array.isArray(res.data.data)) {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
-      
+
       {/* Header */}
       <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
         <View style={styles.headerLeft}>
+        <Text style={styles.headerTitle}></Text>
           <Text style={styles.headerTitle}>Admin Panel</Text>
           <Text style={styles.headerSubtitle}>IoT Device Management System</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity 
-            onPress={refreshOnlineStatus} 
+          <TouchableOpacity
+            onPress={refreshOnlineStatus}
             disabled={checkingStatus}
             style={styles.iconBtn}
           >
@@ -751,8 +676,8 @@ if (res.data?.status && Array.isArray(res.data.data)) {
               <RotateCw size={22} color={checkingStatus ? "#6366f1" : "#475569"} />
             </Animated.View>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.iconBtn, styles.filterIcon]} 
+          <TouchableOpacity
+            style={[styles.iconBtn, styles.filterIcon]}
             onPress={() => setStatusFilter(statusFilter === 'all' ? 'online' : 'all')}
           >
             <Filter size={22} color="#475569" />
@@ -783,13 +708,13 @@ if (res.data?.status && Array.isArray(res.data.data)) {
       </View>
 
       {/* Filter Buttons */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false} 
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
         style={styles.filterContainer}
         contentContainerStyle={styles.filterContent}
       >
-        <FilterButton label="Semua" value="all" isActive={statusFilter === 'all' } />
+        <FilterButton label="Semua" value="all" isActive={statusFilter === 'all'} />
         <FilterButton label="Online" value="online" isActive={statusFilter === 'online'} />
         <FilterButton label="Offline" value="offline" isActive={statusFilter === 'offline'} />
         <FilterButton label="Aktif" value="active" isActive={statusFilter === 'active'} />
@@ -798,7 +723,7 @@ if (res.data?.status && Array.isArray(res.data.data)) {
         <FilterButton label="AWS" value="aws" isActive={statusFilter === 'aws'} />
       </ScrollView>
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
@@ -809,38 +734,38 @@ if (res.data?.status && Array.isArray(res.data.data)) {
           />
         }
       >
-        
+
         {/* Stats Section */}
         <View style={styles.statsGrid}>
-          <StatCard 
-            label="Total Perangkat" 
-            value={users.length} 
+          <StatCard
+            label="Total Perangkat"
+            value={users.length}
             subValue={`${deviceStatus.aktif} Aktif`}
-            icon={Cpu} 
+            icon={Cpu}
             color="#6366f1"
             onPress={() => setStatusFilter('all')}
           />
-          <StatCard 
-            label="Online" 
-            value={deviceStatus.online} 
+          <StatCard
+            label="Online"
+            value={deviceStatus.online}
             subValue="Update ≤ 30m"
-            icon={Wifi} 
+            icon={Wifi}
             color="#22c55e"
             onPress={() => setStatusFilter('online')}
           />
-          <StatCard 
-            label="Offline" 
-            value={deviceStatus.offline} 
+          <StatCard
+            label="Offline"
+            value={deviceStatus.offline}
             subValue="Update > 30m"
-            icon={WifiOff} 
+            icon={WifiOff}
             color="#f97316"
             onPress={() => setStatusFilter('offline')}
           />
-          <StatCard 
-            label="Nonaktif" 
-            value={deviceStatus.nonaktif} 
+          <StatCard
+            label="Nonaktif"
+            value={deviceStatus.nonaktif}
             subValue="Device Inactive"
-            icon={Power} 
+            icon={Power}
             color="#ef4444"
             onPress={() => setStatusFilter('inactive')}
           />
@@ -854,7 +779,7 @@ if (res.data?.status && Array.isArray(res.data.data)) {
             <Text style={styles.refreshText}>Refresh</Text>
           </TouchableOpacity>
         </View>
-        
+
         {loading && users.length === 0 ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#6366f1" />
@@ -865,7 +790,7 @@ if (res.data?.status && Array.isArray(res.data.data)) {
             <Cpu size={48} color="#cbd5e1" />
             <Text style={styles.emptyTitle}>Tidak Ada Perangkat</Text>
             <Text style={styles.emptyText}>
-              {searchQuery || statusFilter !== 'all' 
+              {searchQuery || statusFilter !== 'all'
                 ? "Tidak ada perangkat yang sesuai dengan filter"
                 : "Tambahkan perangkat pertama Anda"}
             </Text>
@@ -879,7 +804,7 @@ if (res.data?.status && Array.isArray(res.data.data)) {
             <DeviceCard key={user.id} user={user} />
           ))
         )}
-        
+
         <View style={{ height: 100 }} />
       </ScrollView>
 
@@ -898,24 +823,24 @@ if (res.data?.status && Array.isArray(res.data.data)) {
           <ScrollView style={styles.modalForm}>
             {/* Tabs */}
             <View style={styles.tabContainer}>
-              <TouchableOpacity 
-                style={[styles.tab, activeTab === 'general' && styles.activeTab]} 
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'general' && styles.activeTab]}
                 onPress={() => setActiveTab('general')}
               >
                 <Text style={[styles.tabText, activeTab === 'general' && styles.activeTabText]}>
                   Umum
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.tab, activeTab === 'location' && styles.activeTab]} 
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'location' && styles.activeTab]}
                 onPress={() => setActiveTab('location')}
               >
                 <Text style={[styles.tabText, activeTab === 'location' && styles.activeTabText]}>
                   Lokasi
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.tab, activeTab === 'sensors' && styles.activeTab]} 
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'sensors' && styles.activeTab]}
                 onPress={() => setActiveTab('sensors')}
               >
                 <Text style={[styles.tabText, activeTab === 'sensors' && styles.activeTabText]}>
@@ -928,48 +853,48 @@ if (res.data?.status && Array.isArray(res.data.data)) {
             {activeTab === 'general' && (
               <View style={styles.tabContent}>
                 <Text style={styles.inputLabel}>Username *</Text>
-                <TextInput 
-                  style={styles.input} 
-                  value={formData.username} 
-                  onChangeText={(t) => setFormData({...formData, username: t})} 
-                  placeholder="Username login" 
+                <TextInput
+                  style={styles.input}
+                  value={formData.username}
+                  onChangeText={(t) => setFormData({ ...formData, username: t })}
+                  placeholder="Username login"
                 />
-                
+
                 <Text style={styles.inputLabel}>Password *</Text>
                 <View style={styles.passwordInput}>
-                  <TextInput 
+                  <TextInput
                     style={styles.passwordTextInput}
                     secureTextEntry={!showPassword}
-                    value={formData.password} 
-                    onChangeText={(t) => setFormData({...formData, password: t})} 
-                    placeholder="Password perangkat" 
+                    value={formData.password}
+                    onChangeText={(t) => setFormData({ ...formData, password: t })}
+                    placeholder="Password perangkat"
                   />
                   <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                     {showPassword ? <EyeOff size={20} color="#64748b" /> : <Eye size={20} color="#64748b" />}
                   </TouchableOpacity>
                 </View>
-                
+
                 <Text style={styles.inputLabel}>Nama Perangkat *</Text>
-                <TextInput 
-                  style={styles.input} 
-                  value={formData.dev_name} 
-                  onChangeText={(t) => setFormData({...formData, dev_name: t})} 
-                  placeholder="Contoh: Smart Farming v1" 
+                <TextInput
+                  style={styles.input}
+                  value={formData.dev_name}
+                  onChangeText={(t) => setFormData({ ...formData, dev_name: t })}
+                  placeholder="Contoh: Smart Farming v1"
                 />
-                
+
                 <Text style={styles.inputLabel}>Device ID (MQTT Client ID) *</Text>
-                <TextInput 
-                  style={styles.input} 
-                  value={formData.dev_id} 
-                  onChangeText={(t) => setFormData({...formData, dev_id: t})} 
-                  placeholder="Contoh: ESP32_01" 
+                <TextInput
+                  style={styles.input}
+                  value={formData.dev_id}
+                  onChangeText={(t) => setFormData({ ...formData, dev_id: t })}
+                  placeholder="Contoh: ESP32_01"
                 />
 
                 <Text style={styles.inputLabel}>Zona Waktu *</Text>
                 <View style={styles.pickerContainer}>
-                  <Picker 
-                    selectedValue={formData.timezone} 
-                    onValueChange={(v) => setFormData({...formData, timezone: v})}
+                  <Picker
+                    selectedValue={formData.timezone}
+                    onValueChange={(v) => setFormData({ ...formData, timezone: v })}
                     style={styles.picker}
                   >
                     <Picker.Item label="WIB" value="WIB" />
@@ -980,9 +905,9 @@ if (res.data?.status && Array.isArray(res.data.data)) {
 
                 <Text style={styles.inputLabel}>Status Alat</Text>
                 <View style={styles.pickerContainer}>
-                  <Picker 
-                    selectedValue={formData.statusAlat} 
-                    onValueChange={(v) => setFormData({...formData, statusAlat: v})}
+                  <Picker
+                    selectedValue={formData.statusAlat}
+                    onValueChange={(v) => setFormData({ ...formData, statusAlat: v })}
                     style={styles.picker}
                   >
                     <Picker.Item label="Aktif" value="1" />
@@ -992,8 +917,8 @@ if (res.data?.status && Array.isArray(res.data.data)) {
 
                 <Text style={styles.inputLabel}>Pilih Template</Text>
                 <View style={styles.pickerContainer}>
-                  <Picker 
-                    selectedValue={formData.dev_type} 
+                  <Picker
+                    selectedValue={formData.dev_type}
                     onValueChange={applyTemplate}
                     style={styles.picker}
                   >
@@ -1004,7 +929,7 @@ if (res.data?.status && Array.isArray(res.data.data)) {
                   </Picker>
                 </View>
 
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.advancedToggle}
                   onPress={() => setShowAdvancedConfig(!showAdvancedConfig)}
                 >
@@ -1017,11 +942,11 @@ if (res.data?.status && Array.isArray(res.data.data)) {
                 {showAdvancedConfig && (
                   <View style={styles.advancedConfig}>
                     <Text style={styles.inputLabel}>Owner Name</Text>
-                    <TextInput 
-                      style={styles.input} 
-                      value={formData.owner} 
-                      onChangeText={(t) => setFormData({...formData, owner: t})} 
-                      placeholder="Nama pemilik/instansi" 
+                    <TextInput
+                      style={styles.input}
+                      value={formData.owner}
+                      onChangeText={(t) => setFormData({ ...formData, owner: t })}
+                      placeholder="Nama pemilik/instansi"
                     />
                   </View>
                 )}
@@ -1032,43 +957,43 @@ if (res.data?.status && Array.isArray(res.data.data)) {
             {activeTab === 'location' && (
               <View style={styles.tabContent}>
                 <Text style={styles.inputLabel}>Kota/Kabupaten</Text>
-                <TextInput 
-                  style={styles.input} 
-                  value={formData.city} 
-                  onChangeText={(t) => setFormData({...formData, city: t})} 
-                  placeholder="Contoh: Jakarta" 
+                <TextInput
+                  style={styles.input}
+                  value={formData.city}
+                  onChangeText={(t) => setFormData({ ...formData, city: t })}
+                  placeholder="Contoh: Jakarta"
                 />
-                
+
                 <Text style={styles.inputLabel}>Lokasi</Text>
-                <TextInput 
-                  style={styles.input} 
-                  value={formData.location} 
-                  onChangeText={(t) => setFormData({...formData, location: t})} 
-                  placeholder="Contoh: Semarang" 
+                <TextInput
+                  style={styles.input}
+                  value={formData.location}
+                  onChangeText={(t) => setFormData({ ...formData, location: t })}
+                  placeholder="Contoh: Semarang"
                 />
-                
+
                 <Text style={styles.inputLabel}>No. IoT SIM</Text>
-                <TextInput 
-                  style={styles.input} 
-                  value={formData.internet_no} 
-                  onChangeText={(t) => setFormData({...formData, internet_no: t})} 
-                  placeholder="Nomor SIM kartu IoT" 
+                <TextInput
+                  style={styles.input}
+                  value={formData.internet_no}
+                  onChangeText={(t) => setFormData({ ...formData, internet_no: t })}
+                  placeholder="Nomor SIM kartu IoT"
                 />
-                
+
                 <Text style={styles.inputLabel}>Nama PIC</Text>
-                <TextInput 
-                  style={styles.input} 
-                  value={formData.pic_name} 
-                  onChangeText={(t) => setFormData({...formData, pic_name: t})} 
-                  placeholder="Nama PIC" 
+                <TextInput
+                  style={styles.input}
+                  value={formData.pic_name}
+                  onChangeText={(t) => setFormData({ ...formData, pic_name: t })}
+                  placeholder="Nama PIC"
                 />
-                
+
                 <Text style={styles.inputLabel}>Kontak PIC</Text>
-                <TextInput 
-                  style={styles.input} 
-                  value={formData.pic_contact} 
-                  onChangeText={(t) => setFormData({...formData, pic_contact: t})} 
-                  placeholder="No. HP atau email" 
+                <TextInput
+                  style={styles.input}
+                  value={formData.pic_contact}
+                  onChangeText={(t) => setFormData({ ...formData, pic_contact: t })}
+                  placeholder="No. HP atau email"
                 />
               </View>
             )}
@@ -1078,16 +1003,16 @@ if (res.data?.status && Array.isArray(res.data.data)) {
               <View style={styles.tabContent}>
                 <View style={styles.sectionHeaderRow}>
                   <Text style={styles.sectionTitle}>Daftar Sensor / Parameter</Text>
-                  <TouchableOpacity 
-                    style={styles.miniAddBtn} 
-                    onPress={() => setParamsList([...paramsList, { 
-                      label: '', 
-                      topic: `temins_iot/${formData.dev_id || 'ID'}/data/`, 
-                      unit: '', 
-                      is_visible: true, 
-                      is_chart: false, 
-                      chart_order: 10, 
-                      chart_data: '' 
+                  <TouchableOpacity
+                    style={styles.miniAddBtn}
+                    onPress={() => setParamsList([...paramsList, {
+                      label: '',
+                      topic: `temins_iot/${formData.dev_id || 'ID'}/data/`,
+                      unit: '',
+                      is_visible: true,
+                      is_chart: false,
+                      chart_order: 10,
+                      chart_data: ''
                     }])}
                   >
                     <Plus size={16} color="white" />
@@ -1103,54 +1028,54 @@ if (res.data?.status && Array.isArray(res.data.data)) {
                         <Trash2 size={20} color="#e11d48" />
                       </TouchableOpacity>
                     </View>
-                    
+
                     <Text style={styles.inputLabel}>Nama Sensor</Text>
-                    <TextInput 
-                      style={styles.input} 
-                      value={p.label} 
-                      onChangeText={(t) => { 
-                        let n = [...paramsList]; 
-                        n[idx].label = t; 
-                        setParamsList(n); 
-                      }} 
-                      placeholder="Contoh: Temperature" 
+                    <TextInput
+                      style={styles.input}
+                      value={p.label}
+                      onChangeText={(t) => {
+                        let n = [...paramsList];
+                        n[idx].label = t;
+                        setParamsList(n);
+                      }}
+                      placeholder="Contoh: Temperature"
                     />
-                    
+
                     <Text style={styles.inputLabel}>Topic MQTT</Text>
-                    <TextInput 
-                      style={styles.input} 
-                      value={p.topic} 
-                      onChangeText={(t) => { 
-                        let n = [...paramsList]; 
-                        n[idx].topic = t; 
-                        setParamsList(n); 
-                      }} 
-                      placeholder="temins_iot/device/data/sensor" 
+                    <TextInput
+                      style={styles.input}
+                      value={p.topic}
+                      onChangeText={(t) => {
+                        let n = [...paramsList];
+                        n[idx].topic = t;
+                        setParamsList(n);
+                      }}
+                      placeholder="temins_iot/device/data/sensor"
                     />
-                    
+
                     <View style={styles.row}>
                       <View style={{ flex: 1, marginRight: 10 }}>
                         <Text style={styles.inputLabel}>Unit</Text>
-                        <TextInput 
-                          style={styles.input} 
-                          value={p.unit} 
-                          onChangeText={(t) => { 
-                            let n = [...paramsList]; 
-                            n[idx].unit = t; 
-                            setParamsList(n); 
-                          }} 
-                          placeholder="°C, %, etc" 
+                        <TextInput
+                          style={styles.input}
+                          value={p.unit}
+                          onChangeText={(t) => {
+                            let n = [...paramsList];
+                            n[idx].unit = t;
+                            setParamsList(n);
+                          }}
+                          placeholder="°C, %, etc"
                         />
                       </View>
-                      
+
                       <View style={styles.switchContainer}>
                         <Text style={styles.switchLabel}>Chart</Text>
                         <Switch
                           value={p.is_chart}
-                          onValueChange={(v) => { 
-                            let n = [...paramsList]; 
-                            n[idx].is_chart = v; 
-                            setParamsList(n); 
+                          onValueChange={(v) => {
+                            let n = [...paramsList];
+                            n[idx].is_chart = v;
+                            setParamsList(n);
                           }}
                           trackColor={{ false: '#cbd5e1', true: '#6366f1' }}
                           thumbColor="white"
@@ -1161,40 +1086,40 @@ if (res.data?.status && Array.isArray(res.data.data)) {
                     {p.is_chart && (
                       <>
                         <Text style={styles.inputLabel}>Chart Key (JSON Path)</Text>
-                        <TextInput 
-                          style={styles.input} 
-                          value={p.chart_data} 
-                          onChangeText={(t) => { 
-                            let n = [...paramsList]; 
-                            n[idx].chart_data = t; 
-                            setParamsList(n); 
-                          }} 
-                          placeholder="data.temperature" 
+                        <TextInput
+                          style={styles.input}
+                          value={p.chart_data}
+                          onChangeText={(t) => {
+                            let n = [...paramsList];
+                            n[idx].chart_data = t;
+                            setParamsList(n);
+                          }}
+                          placeholder="data.temperature"
                         />
-                        
+
                         <Text style={styles.inputLabel}>Chart Order</Text>
-                        <TextInput 
-                          style={styles.input} 
-                          value={String(p.chart_order)} 
-                          onChangeText={(t) => { 
-                            let n = [...paramsList]; 
-                            n[idx].chart_order = parseInt(t) || 10; 
-                            setParamsList(n); 
-                          }} 
-                          placeholder="Urutan grafik" 
+                        <TextInput
+                          style={styles.input}
+                          value={String(p.chart_order)}
+                          onChangeText={(t) => {
+                            let n = [...paramsList];
+                            n[idx].chart_order = parseInt(t) || 10;
+                            setParamsList(n);
+                          }}
+                          placeholder="Urutan grafik"
                           keyboardType="numeric"
                         />
                       </>
                     )}
-                    
+
                     <View style={styles.switchContainer}>
                       <Text style={styles.switchLabel}>Visible di Dashboard</Text>
                       <Switch
                         value={p.is_visible}
-                        onValueChange={(v) => { 
-                          let n = [...paramsList]; 
-                          n[idx].is_visible = v; 
-                          setParamsList(n); 
+                        onValueChange={(v) => {
+                          let n = [...paramsList];
+                          n[idx].is_visible = v;
+                          setParamsList(n);
                         }}
                         trackColor={{ false: '#cbd5e1', true: '#10b981' }}
                         thumbColor="white"
@@ -1204,20 +1129,20 @@ if (res.data?.status && Array.isArray(res.data.data)) {
                 ))}
               </View>
             )}
-            
+
             <View style={{ height: 50 }} />
           </ScrollView>
 
           <View style={styles.modalFooter}>
-            <TouchableOpacity 
-              style={styles.footerBtnCancel} 
+            <TouchableOpacity
+              style={styles.footerBtnCancel}
               onPress={() => setModalMode('none')}
             >
               <Text style={styles.footerBtnCancelText}>Batal</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.footerBtnSave} 
-              onPress={handleSave} 
+            <TouchableOpacity
+              style={styles.footerBtnSave}
+              onPress={handleSave}
               disabled={loading}
             >
               {loading ? (
@@ -1253,50 +1178,50 @@ if (res.data?.status && Array.isArray(res.data.data)) {
                   <Text style={styles.awlrTitle}>Konfigurasi AWLR</Text>
                 </View>
                 <Text style={styles.awlrSubtitle}>Pengaturan sensor ketinggian air</Text>
-                
+
                 <Text style={styles.inputLabel}>Tinggi Sensor (cm)</Text>
-                <TextInput 
-                  style={styles.input} 
-                  value={formData.awlr_height} 
-                  onChangeText={(t) => setFormData({...formData, awlr_height: t})} 
-                  placeholder="0" 
+                <TextInput
+                  style={styles.input}
+                  value={formData.awlr_height}
+                  onChangeText={(t) => setFormData({ ...formData, awlr_height: t })}
+                  placeholder="0"
                   keyboardType="numeric"
                 />
                 <Text style={styles.inputLabel}>Jenis AWLR</Text>
-               <View style={styles.pickerContainer}>
-                  <Picker 
-                    selectedValue={formData.awlrJenis} 
-                    onValueChange={(v) => setFormData({...formData, awlrJenis: v})}
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={formData.awlrJenis}
+                    onValueChange={(v) => setFormData({ ...formData, awlrJenis: v })}
                     style={styles.picker}
                   >
                     <Picker.Item label="Sungai" value="sungai" />
                     <Picker.Item label="Sumur" value="sumur" />
                   </Picker>
                 </View>
-                
+
                 <Text style={styles.inputLabel}>Data Sensor AWLR</Text>
                 <View style={styles.pickerContainer}>
-                  <Picker 
-                    selectedValue={formData.awlrData} 
-                    onValueChange={(v) => setFormData({...formData, awlrData: v})}
+                  <Picker
+                    selectedValue={formData.awlrData}
+                    onValueChange={(v) => setFormData({ ...formData, awlrData: v })}
                     style={styles.picker}
                   >
                     <Picker.Item label="-- Pilih Sensor --" value="" />
                     {paramsList.map((param, idx) => (
-                      <Picker.Item 
-                        key={idx} 
-                        label={`${param.label} (${param.chart_data})`} 
-                        value={param.chart_data} 
+                      <Picker.Item
+                        key={idx}
+                        label={`${param.label} (${param.chart_data})`}
+                        value={param.chart_data}
                       />
                     ))}
                   </Picker>
                 </View>
-                
+
                 <Text style={styles.inputLabel}>Pengurangan Data</Text>
                 <View style={styles.pickerContainer}>
-                  <Picker 
-                    selectedValue={formData.awlrStatusData} 
-                    onValueChange={(v) => setFormData({...formData, awlrStatusData: v})}
+                  <Picker
+                    selectedValue={formData.awlrStatusData}
+                    onValueChange={(v) => setFormData({ ...formData, awlrStatusData: v })}
                     style={styles.picker}
                   >
                     <Picker.Item label="Aktif" value="1" />
@@ -1309,12 +1234,12 @@ if (res.data?.status && Array.isArray(res.data.data)) {
             {/* General Configuration */}
             <View style={styles.formSection}>
               <Text style={styles.sectionHeader}>Pengaturan Umum</Text>
-              
+
               <Text style={styles.inputLabel}>Zona Waktu</Text>
               <View style={styles.pickerContainer}>
-                <Picker 
-                  selectedValue={formData.timezone} 
-                  onValueChange={(v) => setFormData({...formData, timezone: v})}
+                <Picker
+                  selectedValue={formData.timezone}
+                  onValueChange={(v) => setFormData({ ...formData, timezone: v })}
                   style={styles.picker}
                 >
                   <Picker.Item label="WIB" value="WIB" />
@@ -1325,9 +1250,9 @@ if (res.data?.status && Array.isArray(res.data.data)) {
 
               <Text style={styles.inputLabel}>Status Alat</Text>
               <View style={styles.pickerContainer}>
-                <Picker 
-                  selectedValue={formData.statusAlat} 
-                  onValueChange={(v) => setFormData({...formData, statusAlat: v})}
+                <Picker
+                  selectedValue={formData.statusAlat}
+                  onValueChange={(v) => setFormData({ ...formData, statusAlat: v })}
                   style={styles.picker}
                 >
                   <Picker.Item label="Aktif" value="1" />
@@ -1340,16 +1265,16 @@ if (res.data?.status && Array.isArray(res.data.data)) {
             <View style={styles.formSection}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeader}>Daftar Sensor / Parameter</Text>
-                <TouchableOpacity 
-                  style={styles.miniAddBtn} 
-                  onPress={() => setParamsList([...paramsList, { 
-                    label: '', 
-                    topic: `temins_iot/${selectedUser?.device_unique_id || 'ID'}/data/`, 
-                    unit: '', 
-                    is_visible: true, 
-                    is_chart: false, 
-                    chart_order: 10, 
-                    chart_data: '' 
+                <TouchableOpacity
+                  style={styles.miniAddBtn}
+                  onPress={() => setParamsList([...paramsList, {
+                    label: '',
+                    topic: `temins_iot/${selectedUser?.device_unique_id || 'ID'}/data/`,
+                    unit: '',
+                    is_visible: true,
+                    is_chart: false,
+                    chart_order: 10,
+                    chart_data: ''
                   }])}
                 >
                   <Plus size={16} color="white" />
@@ -1365,54 +1290,54 @@ if (res.data?.status && Array.isArray(res.data.data)) {
                       <Trash2 size={20} color="#e11d48" />
                     </TouchableOpacity>
                   </View>
-                  
+
                   <Text style={styles.inputLabel}>Nama Sensor</Text>
-                  <TextInput 
-                    style={styles.input} 
-                    value={p.label} 
-                    onChangeText={(t) => { 
-                      let n = [...paramsList]; 
-                      n[idx].label = t; 
-                      setParamsList(n); 
-                    }} 
-                    placeholder="Contoh: Temperature" 
+                  <TextInput
+                    style={styles.input}
+                    value={p.label}
+                    onChangeText={(t) => {
+                      let n = [...paramsList];
+                      n[idx].label = t;
+                      setParamsList(n);
+                    }}
+                    placeholder="Contoh: Temperature"
                   />
-                  
+
                   <Text style={styles.inputLabel}>Topic MQTT</Text>
-                  <TextInput 
-                    style={styles.input} 
-                    value={p.topic} 
-                    onChangeText={(t) => { 
-                      let n = [...paramsList]; 
-                      n[idx].topic = t; 
-                      setParamsList(n); 
-                    }} 
-                    placeholder="temins_iot/device/data/sensor" 
+                  <TextInput
+                    style={styles.input}
+                    value={p.topic}
+                    onChangeText={(t) => {
+                      let n = [...paramsList];
+                      n[idx].topic = t;
+                      setParamsList(n);
+                    }}
+                    placeholder="temins_iot/device/data/sensor"
                   />
-                  
+
                   <View style={styles.row}>
                     <View style={{ flex: 1, marginRight: 10 }}>
                       <Text style={styles.inputLabel}>Unit</Text>
-                      <TextInput 
-                        style={styles.input} 
-                        value={p.unit} 
-                        onChangeText={(t) => { 
-                          let n = [...paramsList]; 
-                          n[idx].unit = t; 
-                          setParamsList(n); 
-                        }} 
-                        placeholder="°C, %, etc" 
+                      <TextInput
+                        style={styles.input}
+                        value={p.unit}
+                        onChangeText={(t) => {
+                          let n = [...paramsList];
+                          n[idx].unit = t;
+                          setParamsList(n);
+                        }}
+                        placeholder="°C, %, etc"
                       />
                     </View>
-                    
+
                     <View style={styles.switchContainer}>
                       <Text style={styles.switchLabel}>Chart</Text>
                       <Switch
                         value={p.is_chart}
-                        onValueChange={(v) => { 
-                          let n = [...paramsList]; 
-                          n[idx].is_chart = v; 
-                          setParamsList(n); 
+                        onValueChange={(v) => {
+                          let n = [...paramsList];
+                          n[idx].is_chart = v;
+                          setParamsList(n);
                         }}
                         trackColor={{ false: '#cbd5e1', true: '#6366f1' }}
                         thumbColor="white"
@@ -1423,40 +1348,40 @@ if (res.data?.status && Array.isArray(res.data.data)) {
                   {p.is_chart && (
                     <>
                       <Text style={styles.inputLabel}>Chart Key (JSON Path)</Text>
-                      <TextInput 
-                        style={styles.input} 
-                        value={p.chart_data} 
-                        onChangeText={(t) => { 
-                          let n = [...paramsList]; 
-                          n[idx].chart_data = t; 
-                          setParamsList(n); 
-                        }} 
-                        placeholder="data.temperature" 
+                      <TextInput
+                        style={styles.input}
+                        value={p.chart_data}
+                        onChangeText={(t) => {
+                          let n = [...paramsList];
+                          n[idx].chart_data = t;
+                          setParamsList(n);
+                        }}
+                        placeholder="data.temperature"
                       />
-                      
+
                       <Text style={styles.inputLabel}>Chart Order</Text>
-                      <TextInput 
-                        style={styles.input} 
-                        value={String(p.chart_order)} 
-                        onChangeText={(t) => { 
-                          let n = [...paramsList]; 
-                          n[idx].chart_order = parseInt(t) || 10; 
-                          setParamsList(n); 
-                        }} 
-                        placeholder="Urutan grafik" 
+                      <TextInput
+                        style={styles.input}
+                        value={String(p.chart_order)}
+                        onChangeText={(t) => {
+                          let n = [...paramsList];
+                          n[idx].chart_order = parseInt(t) || 10;
+                          setParamsList(n);
+                        }}
+                        placeholder="Urutan grafik"
                         keyboardType="numeric"
                       />
                     </>
                   )}
-                  
+
                   <View style={styles.switchContainer}>
                     <Text style={styles.switchLabel}>Visible di Dashboard</Text>
                     <Switch
                       value={p.is_visible}
-                      onValueChange={(v) => { 
-                        let n = [...paramsList]; 
-                        n[idx].is_visible = v; 
-                        setParamsList(n); 
+                      onValueChange={(v) => {
+                        let n = [...paramsList];
+                        n[idx].is_visible = v;
+                        setParamsList(n);
                       }}
                       trackColor={{ false: '#cbd5e1', true: '#10b981' }}
                       thumbColor="white"
@@ -1465,20 +1390,20 @@ if (res.data?.status && Array.isArray(res.data.data)) {
                 </View>
               ))}
             </View>
-            
+
             <View style={{ height: 50 }} />
           </ScrollView>
 
           <View style={styles.modalFooter}>
-            <TouchableOpacity 
-              style={styles.footerBtnCancel} 
+            <TouchableOpacity
+              style={styles.footerBtnCancel}
               onPress={() => setModalMode('none')}
             >
               <Text style={styles.footerBtnCancelText}>Batal</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.footerBtnSave} 
-              onPress={handleSave} 
+            <TouchableOpacity
+              style={styles.footerBtnSave}
+              onPress={handleSave}
               disabled={loading}
             >
               {loading ? (
@@ -1522,28 +1447,28 @@ if (res.data?.status && Array.isArray(res.data.data)) {
                       <Text style={styles.detailSubtitle}>{selectedUser.device_type || 'Custom Device'}</Text>
                     </View>
                   </View>
-                  
+
                   <View style={styles.detailGrid}>
                     <View style={styles.detailItem}>
                       <Text style={styles.detailLabel}>Device ID</Text>
                       <Text style={styles.detailValue} selectable>{selectedUser.device_unique_id}</Text>
                     </View>
-                    
+
                     <View style={styles.detailItem}>
                       <Text style={styles.detailLabel}>Pemilik</Text>
                       <Text style={styles.detailValue}>{selectedUser.owner_name || '-'}</Text>
                     </View>
-                    
+
                     <View style={styles.detailItem}>
                       <Text style={styles.detailLabel}>Lokasi</Text>
                       <Text style={styles.detailValue}>{selectedUser.city || '-'}</Text>
                     </View>
-                    
+
                     <View style={styles.detailItem}>
                       <Text style={styles.detailLabel}>Status</Text>
                       <View style={styles.statusContainer}>
                         <View style={[
-                          styles.statusDot, 
+                          styles.statusDot,
                           { backgroundColor: getStatusColor(selectedUser.status, selectedUser.is_online) }
                         ]} />
                         <Text style={[
@@ -1554,7 +1479,7 @@ if (res.data?.status && Array.isArray(res.data.data)) {
                         </Text>
                       </View>
                     </View>
-                    
+
                     {selectedUser.last_data && (
                       <>
                         <View style={styles.detailItem}>
@@ -1563,7 +1488,7 @@ if (res.data?.status && Array.isArray(res.data.data)) {
                             {selectedUser.last_data.value} {selectedUser.last_data.parameter_name}
                           </Text>
                         </View>
-                        
+
                         <View style={styles.detailItem}>
                           <Text style={styles.detailLabel}>Waktu Update</Text>
                           <Text style={styles.detailValue}>
@@ -1577,7 +1502,7 @@ if (res.data?.status && Array.isArray(res.data.data)) {
 
                 {/* Actions */}
                 <View style={styles.actionButtons}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.actionButton, styles.editButton]}
                     onPress={() => {
                       setModalMode('none');
@@ -1587,8 +1512,8 @@ if (res.data?.status && Array.isArray(res.data.data)) {
                     <Settings size={20} color="#4f46e5" />
                     <Text style={styles.actionButtonText}>Edit Config</Text>
                   </TouchableOpacity>
-                  
-                  <TouchableOpacity 
+
+                  <TouchableOpacity
                     style={[styles.actionButton, styles.passwordButton]}
                     onPress={() => {
                       setModalMode('none');
@@ -1616,32 +1541,32 @@ if (res.data?.status && Array.isArray(res.data.data)) {
               <Key size={24} color="#6366f1" />
               <Text style={styles.smallModalTitle}>Ganti Password</Text>
             </View>
-            
+
             <Text style={styles.smallModalSubtitle}>{selectedUser?.username}</Text>
-            
+
             <View style={styles.passwordInput}>
-              <TextInput 
-                style={styles.smallModalInput} 
+              <TextInput
+                style={styles.smallModalInput}
                 secureTextEntry={!showPassword}
-                placeholder="Password Baru" 
+                placeholder="Password Baru"
                 value={formData.new_password}
-                onChangeText={(t) => setFormData({new_password: t})}
+                onChangeText={(t) => setFormData({ new_password: t })}
                 placeholderTextColor="#94a3b8"
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                 {showPassword ? <EyeOff size={20} color="#64748b" /> : <Eye size={20} color="#64748b" />}
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.smallModalActions}>
-              <TouchableOpacity 
-                style={styles.smallModalCancel} 
+              <TouchableOpacity
+                style={styles.smallModalCancel}
                 onPress={() => setModalMode('none')}
               >
                 <Text style={styles.smallModalCancelText}>Batal</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.smallModalConfirm} 
+              <TouchableOpacity
+                style={styles.smallModalConfirm}
                 onPress={handleSave}
                 disabled={loading}
               >
@@ -1662,19 +1587,19 @@ if (res.data?.status && Array.isArray(res.data.data)) {
 
 // --- Styles ---
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#f8fafc' 
+  container: {
+    flex: 1,
+    backgroundColor: '#f8fafc'
   },
-  
+
   // Header Styles
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20, 
-    backgroundColor: 'white', 
-    borderBottomWidth: 1, 
+    padding: 20,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1685,35 +1610,35 @@ const styles = StyleSheet.create({
   headerLeft: {
     flex: 1,
   },
-  headerTitle: { 
-    fontSize: 22, 
-    fontWeight: 'bold', 
-    color: '#0f172a' 
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#0f172a'
   },
-  headerSubtitle: { 
-    fontSize: 12, 
+  headerSubtitle: {
+    fontSize: 12,
     color: '#64748b',
     marginTop: 2,
   },
-  headerActions: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 12 
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
   },
-  iconBtn: { 
-    padding: 8, 
+  iconBtn: {
+    padding: 8,
     borderRadius: 10,
     backgroundColor: '#f1f5f9',
   },
   filterIcon: {
     backgroundColor: '#f1f5f9',
   },
-  addBtn: { 
-    backgroundColor: '#6366f1', 
-    width: 44, 
-    height: 44, 
-    borderRadius: 12, 
-    justifyContent: 'center', 
+  addBtn: {
+    backgroundColor: '#6366f1',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#6366f1',
     shadowOffset: { width: 0, height: 4 },
@@ -1721,7 +1646,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  
+
   // Search Styles
   searchContainer: {
     paddingHorizontal: 20,
@@ -1746,13 +1671,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0f172a',
   },
-  
+
   // Filter Styles
   filterContainer: {
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
-     minHeight: 60, // ⬅️ WAJIB
+    minHeight: 60, // ⬅️ WAJIB
   },
   filterContent: {
     paddingHorizontal: 20,
@@ -1779,24 +1704,24 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: '#ffffff',
   },
-  
+
   // Scroll Content
-  scrollContent: { 
-    padding: 20 
+  scrollContent: {
+    padding: 20
   },
-  
+
   // Stats Section
-  statsGrid: { 
-    flexDirection: 'row', 
+  statsGrid: {
+    flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12, 
-    marginBottom: 20 
+    gap: 12,
+    marginBottom: 20
   },
-  statCard: { 
+  statCard: {
     width: (SCREEN_WIDTH - 52) / 2,
-    backgroundColor: 'white', 
-    padding: 16, 
-    borderRadius: 16, 
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     shadowColor: '#000',
@@ -1805,33 +1730,33 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  statHeader: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 8, 
-    marginBottom: 12 
+  statHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12
   },
-  statIcon: { 
-    padding: 8, 
-    borderRadius: 10 
+  statIcon: {
+    padding: 8,
+    borderRadius: 10
   },
-  statLabel: { 
-    fontSize: 11, 
-    color: '#64748b', 
+  statLabel: {
+    fontSize: 11,
+    color: '#64748b',
     fontWeight: 'bold',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  statValue: { 
-    fontSize: 24, 
+  statValue: {
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 4,
   },
-  statSub: { 
-    fontSize: 10, 
-    color: '#94a3b8' 
+  statSub: {
+    fontSize: 10,
+    color: '#94a3b8'
   },
-  
+
   // Section Header
   sectionHeader: {
     flexDirection: 'row',
@@ -1839,10 +1764,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  sectionTitle: { 
-    fontSize: 18, 
-    fontWeight: 'bold', 
-    color: '#1e293b' 
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1e293b'
   },
   refreshBtn: {
     flexDirection: 'row',
@@ -1858,7 +1783,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6366f1',
   },
-  
+
   // Loading & Empty States
   loadingContainer: {
     alignItems: 'center',
@@ -1907,7 +1832,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-  
+
   // Device Card Styles
   deviceCard: {
     backgroundColor: 'white',
@@ -2063,7 +1988,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#4f46e5',
   },
-  
+
   // Modal Styles
   modalContainer: {
     flex: 1,
@@ -2094,7 +2019,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
-  
+
   // Tabs
   tabContainer: {
     flexDirection: 'row',
@@ -2128,12 +2053,12 @@ const styles = StyleSheet.create({
   tabContent: {
     gap: 16,
   },
-  
+
   // Form Elements
   inputLabel: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#030303',
+    color: '#000000ff',
     marginBottom: 8,
   },
   input: {
@@ -2143,7 +2068,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     fontSize: 14,
-    color: '#0f172a',
+    color: '#000000ff',
   },
   passwordInput: {
     flexDirection: 'row',
@@ -2161,17 +2086,18 @@ const styles = StyleSheet.create({
     color: '#0f172a',
   },
   pickerContainer: {
-    color: '#0f172a',
-    backgroundColor: '#f8fafc',
+    color: '#ff0000ff',
+    backgroundColor: '#ffffffff',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#0870f7ff',
     overflow: 'hidden',
   },
   picker: {
+    color: '#000000ff',
     height: 50,
   },
-  
+
   // Advanced Config
   advancedToggle: {
     flexDirection: 'row',
@@ -2188,7 +2114,7 @@ const styles = StyleSheet.create({
   advancedConfig: {
     marginTop: 8,
   },
-  
+
   // AWLR Config
   awlrConfig: {
     backgroundColor: '#f0f9ff',
@@ -2214,7 +2140,7 @@ const styles = StyleSheet.create({
     color: '#38bdf8',
     marginBottom: 16,
   },
-  
+
   // Form Sections
   formSection: {
     marginTop: 20,
@@ -2234,7 +2160,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  
+
   // Parameter Cards
   paramCard: {
     backgroundColor: '#f8fafc',
@@ -2284,7 +2210,7 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
   },
-  
+
   // Modal Footer
   modalFooter: {
     flexDirection: 'row',
@@ -2328,7 +2254,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
-  
+
   // Detail Modal
   detailCard: {
     backgroundColor: 'white',
@@ -2412,7 +2338,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  
+
   // Small Modal (Password Change)
   overlay: {
     flex: 1,
@@ -2450,7 +2376,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   smallModalInput: {
-    
+
     flex: 1,
     paddingVertical: 12,
     fontSize: 16,

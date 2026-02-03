@@ -675,6 +675,7 @@ const styles = StyleSheet.create({
   pickerItem: {
     color: '#000000',
     fontSize: 14,
+    backgroundColor: '#ffffffff',
   },
   
   // BUTTONS

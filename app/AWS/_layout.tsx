@@ -41,21 +41,7 @@ export default function AWSLayout() {
       />
 
       {/* MENU 2: MONITORING */}
-      <Tabs.Screen
-        name="power"
-        options={{
-          headerShown: false,
-          title: 'Live Monitor',
-          tabBarLabel: 'Power',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? 'pulse' : 'pulse-outline'} 
-              size={24} 
-              color={color} 
-            />
-          ),
-        }}
-      />
+      
 
       {/* MENU 3: HISTORY */}
       <Tabs.Screen
@@ -67,6 +53,22 @@ export default function AWSLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
               name={focused ? 'list' : 'list-outline'} 
+              size={24} 
+              color={color} 
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="power"
+        options={{
+          headerShown: false,
+          title: 'Live Monitor',
+          tabBarLabel: 'Power',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? 'pulse' : 'pulse-outline'} 
               size={24} 
               color={color} 
             />
