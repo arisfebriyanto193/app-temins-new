@@ -103,7 +103,7 @@ export default function AnalyticsPage() {
 
   const fetchChartData = async () => {
     setLoadingData(true);
-    let url = `${API_DATA_URL}/api/get-data?device_id=${deviceId}&jenis=${selectedSensor}&periode=${period}&mode=ringkas`;
+    let url = `${API_DATA_URL}/api/get-data?device_id=${deviceId}&jenis=${selectedSensor}&periode=${period}&limit=8&mode=ringkas`;
     if (period === 'bulan') url += `&bulan=${month}&tahun=${year}`;
 
     try {

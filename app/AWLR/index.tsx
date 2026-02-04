@@ -1,44 +1,36 @@
 // screens/AWLRDashboard.tsx
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Modal,
-  Dimensions,
-  SafeAreaView,
-  StatusBar,
-  Alert,
-  Platform,
-  AppState,
-} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { LineChart } from 'react-native-chart-kit';
 import * as Network from 'expo-network';
-import mqtt from 'mqtt';
 import {
-  Waves,
-  Moon,
-  Sun,
-  ShieldCheck,
-  Bolt,
   Activity,
-  Satellite,
   AlertTriangle,
-  Bell,
-  Menu,
-  Settings2,
-  Wifi,
-  WifiOff,
-  Database,
-  X,
-  LogOut,
   BarChart3,
+  Bolt,
+  Database,
+  LogOut,
+  Satellite,
+  Settings2,
+  ShieldCheck,
+  Waves,
+  X
 } from 'lucide-react-native';
+import mqtt from 'mqtt';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  AppState,
+  Dimensions,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { LineChart } from 'react-native-chart-kit';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -104,7 +96,7 @@ export default function AWLRDashboard() {
       const networkState = await Network.getNetworkStateAsync();
       const online = networkState.isConnected && networkState.isInternetReachable;
       setIsOnline(!!online);
-      
+
       if (online) {
         console.log('✅ Device is online');
         hasFetchedOffline.current = false;
@@ -129,7 +121,7 @@ export default function AWLRDashboard() {
       console.log('📡 Fetching data from API...');
       const apiUrl = process.env.EXPO_PUBLIC_API_DATA || 'https://your-api-url.com';
       const apiToken = process.env.EXPO_PUBLIC_API_TOKEN || 'your-token';
-      
+
       const url = `${apiUrl}/api/get-data?device_id=${deviceData.device.id}&jenis=${deviceData.device.data}&periode=now`;
       console.log('API URL:', url);
 
@@ -147,9 +139,11 @@ export default function AWLRDashboard() {
         const batteryData = json.data.find((item: any) => item.parameter_name === 'tsp');
         const waktu = sensorData?.recorded_at;
 
+        let newDistance = distance;
+
         if (sensorData) {
           const val = parseFloat(sensorData.value);
-          let newDistance = val;
+          newDistance = val;
 
           if (deviceData.device.statusData === '1') {
             const maxHeight = parseFloat(deviceData.device.max_height);
@@ -170,7 +164,7 @@ export default function AWLRDashboard() {
 
         console.log('✅ API data updated successfully');
         hasFetchedOffline.current = true;
-        
+
         // Simpan ke cache
         await AsyncStorage.setItem('cachedData', JSON.stringify({
           distance: newDistance >= 0 ? newDistance : 0,
@@ -180,7 +174,7 @@ export default function AWLRDashboard() {
       }
     } catch (err: any) {
       console.error('❌ Error fetching data from API:', err);
-      
+
       // Coba ambil dari cache
       try {
         const cached = await AsyncStorage.getItem('cachedData');
@@ -201,7 +195,7 @@ export default function AWLRDashboard() {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-           const token = await AsyncStorage.getItem('user_token');
+        const token = await AsyncStorage.getItem('user_token');
         if (!token) {
           navigation.navigate('Login');
           return;
@@ -209,7 +203,7 @@ export default function AWLRDashboard() {
 
         console.log('🔄 Fetching initial device config...');
         const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://your-api-url.com';
-        
+
         const res = await fetch(`${apiUrl}/api-app/user/awlr/ds.php`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -222,13 +216,13 @@ export default function AWLRDashboard() {
           setDistance(json.initial.distance);
           setBattery(json.initial.battery);
           setIsInitialized(true);
-          
+
           // Simpan ke cache
           await AsyncStorage.setItem('deviceConfig', JSON.stringify(json));
         }
       } catch (err) {
         console.error('❌ Initial Fetch Error:', err);
-        
+
         // Coba ambil dari cache
         try {
           const cachedConfig = await AsyncStorage.getItem('deviceConfig');
@@ -246,10 +240,10 @@ export default function AWLRDashboard() {
     };
 
     checkOnlineStatus();
-    
+
     // Setup network listener
     const interval = setInterval(checkOnlineStatus, 10000); // Check every 10 seconds
-    
+
     fetchInitialData();
 
     return () => {
@@ -409,10 +403,10 @@ export default function AWLRDashboard() {
       const dataGrafik = deviceData.device.grafik;
       let timezone = deviceData.device.zonawaktu;
       console.log('🚀 Zona Waktu:', timezone);
-      
+
       const apiUrl = process.env.EXPO_PUBLIC_API_DATA || 'https://your-api-url.com';
       const apiToken = process.env.EXPO_PUBLIC_API_TOKEN || 'your-token';
-      
+
       const url = `${apiUrl}/api/get-data?device_id=${deviceData.device.id}&jenis=${dataGrafik}&periode=${periode}&mode=ringkas&zonawaktu=${timezone}&limit=10`;
 
       console.log('📈 Fetching chart history:', url);
@@ -539,7 +533,7 @@ export default function AWLRDashboard() {
       <StatusBar backgroundColor="#f8fafc" barStyle="dark-content" />
 
       {/* Header */}
-      <Text>Test</Text>
+
       <View style={styles.header}>
 
 
@@ -549,7 +543,7 @@ export default function AWLRDashboard() {
           </View>
           <View>
             <Text style={styles.headerTitle}>
-            {deviceData?.device.owner} - {deviceData?.device.lokasi}
+              {deviceData?.device.owner} - {deviceData?.device.lokasi}
             </Text>
             {mqttStatus.includes('ONLINE') && isOnline ? (
               <Text style={styles.onlineStatus}>● Live</Text>
@@ -564,7 +558,7 @@ export default function AWLRDashboard() {
         </View>
 
         <View style={styles.headerControls}>
-         
+
 
           <View
             style={[
@@ -572,10 +566,10 @@ export default function AWLRDashboard() {
               mqttStatus.includes('ONLINE') && isOnline
                 ? styles.statusOnline
                 : mqttStatus === 'RECONNECTING'
-                ? styles.statusReconnecting
-                : mqttStatus.includes('OFFLINE')
-                ? styles.statusOffline
-                : styles.statusError,
+                  ? styles.statusReconnecting
+                  : mqttStatus.includes('OFFLINE')
+                    ? styles.statusOffline
+                    : styles.statusError,
             ]}
           >
             <View
@@ -584,16 +578,16 @@ export default function AWLRDashboard() {
                 mqttStatus.includes('ONLINE') && isOnline
                   ? styles.dotOnline
                   : mqttStatus === 'RECONNECTING'
-                  ? styles.dotReconnecting
-                  : mqttStatus.includes('OFFLINE')
-                  ? styles.dotOffline
-                  : styles.dotError,
+                    ? styles.dotReconnecting
+                    : mqttStatus.includes('OFFLINE')
+                      ? styles.dotOffline
+                      : styles.dotError,
               ]}
             />
             <Text style={styles.statusText}>{mqttStatus}</Text>
-            {offlineDuration && mqttStatus === 'OFFLINE' && (
-              <Text style={styles.offlineDuration}>({offlineDuration})</Text>
-            )}
+            {offlineDuration && mqttStatus === 'OFFLINE'}
+            {/* // <Text style={styles.offlineDuration}>({offlineDuration})</Text> */}
+
           </View>
         </View>
       </View>
@@ -660,7 +654,7 @@ export default function AWLRDashboard() {
 
               {/* River Bottom */}
               <View style={styles.riverBottom}>
-                
+
               </View>
             </View>
           </View>
@@ -669,7 +663,7 @@ export default function AWLRDashboard() {
           <View style={styles.statsContainer}>
             {/* Battery Card */}
             <View style={styles.batteryCard}>
-              
+
               <View>
                 <Text style={styles.cardLabel}>Tegangan Baterai</Text>
                 <View style={styles.valueContainer}>
@@ -684,14 +678,14 @@ export default function AWLRDashboard() {
 
             {/* Status Card */}
             <View style={styles.unitSelectorContainer}>
-            <Settings2 size={14} color="#64748b" style={styles.unitIcon} />
-            <TouchableOpacity
-              style={styles.unitSelector}
-              onPress={() => setUnit(unit === 'cm' ? 'mm' : 'cm')}
-            >
-              <Text style={styles.unitText}>Satuan: {unit.toUpperCase()}</Text>
-            </TouchableOpacity>
-          </View>
+              <Settings2 size={14} color="#64748b" style={styles.unitIcon} />
+              <TouchableOpacity
+                style={styles.unitSelector}
+                onPress={() => setUnit(unit === 'cm' ? 'mm' : 'cm')}
+              >
+                <Text style={styles.unitText}>Satuan: {unit.toUpperCase()}</Text>
+              </TouchableOpacity>
+            </View>
 
             {/* Chart Area */}
             <View style={styles.chartContainer}>
@@ -699,7 +693,7 @@ export default function AWLRDashboard() {
                 <View style={styles.chartTitleContainer}>
                   <Activity size={18} color="#3b82f6" />
                   <Text style={styles.chartTitle}>
-                  {waterLabel}
+                    {waterLabel}
                   </Text>
                   {!isOnline && (
                     <View style={styles.cachedBadge}>
@@ -765,7 +759,7 @@ export default function AWLRDashboard() {
               )}
             </View>
           </View>
-          
+
         </View>
       </ScrollView>
 

@@ -118,7 +118,7 @@ export default function PowerPage() {
     if (!config || !chartSensor) return;
 
     const fetchChart = async () => {
-      const url = `${process.env.EXPO_PUBLIC_API_DATA}/api/get-data?device_id=${config.device.id}&jenis=${chartSensor}&periode=${chartPeriod}&mode=ringkas&zonawaktu=${config.device.zonawaktu}`;
+      const url = `${process.env.EXPO_PUBLIC_API_DATA}/api/get-data?device_id=${config.device.id}&jenis=${chartSensor}&periode=${chartPeriod}&limit=8&mode=ringkas&zonawaktu=${config.device.zonawaktu}`;
       
       try {
         const res = await fetch(url, {

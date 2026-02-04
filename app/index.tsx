@@ -1,27 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from 'expo-blur';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-  Alert,
   ActivityIndicator,
-  Image,
+  Alert,
+  Animated,
+  Dimensions,
+  Easing,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Dimensions,
   StatusBar,
-  Animated,
-  Easing,
-  Keyboard
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
+import { isTokenExpired } from './utils/auth';
 
 // Placeholder logo - ganti dengan path logo Anda
 const LOGO = require('../assets/images/logo.png');
@@ -50,7 +50,7 @@ export default function LoginScreen() {
   // Cek token saat pertama kali buka aplikasi
   useEffect(() => {
     checkExistingToken();
-    
+
     // Start animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -81,7 +81,7 @@ export default function LoginScreen() {
         }).start();
       }
     );
-    
+
     const keyboardDidHideListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
       () => {
@@ -104,40 +104,47 @@ export default function LoginScreen() {
     try {
       const token = await AsyncStorage.getItem('user_token');
       const userData = await AsyncStorage.getItem('user_data');
-      
-      if (token && userData) {
-        const parsedData = JSON.parse(userData);
-        const deviceType = parsedData.device_type;
-        
-        // Delay untuk animasi
-        setTimeout(() => {
-          // Redirect berdasarkan device_type
-          switch (deviceType) {
-            case 'AWS':
-              router.replace('/AWS');
-              break;
-            case 'AWLR':
-              router.replace('/AWLR');
-              break;
-            case 'Smart_Farm':
-              router.replace('/sf');
-              break;
-            case 'admin':
-              router.replace('/admin');
-              break;
-            default:
-              router.replace('/AWS');
-              break;
-          }
-        }, 500);
-      } else {
+
+      if (!token || !userData) {
         setCheckingToken(false);
+        return;
       }
+
+      // 🔥 CEK EXP JWT
+      if (isTokenExpired(token)) {
+        await AsyncStorage.removeItem('user_token');
+        await AsyncStorage.removeItem('user_data');
+        setCheckingToken(false);
+        return;
+      }
+
+      const parsedData = JSON.parse(userData);
+      const deviceType = parsedData.device_type;
+
+      setTimeout(() => {
+        switch (deviceType) {
+          case 'AWS':
+            router.replace('/AWS');
+            break;
+          case 'AWLR':
+            router.replace('/AWLR');
+            break;
+          case 'Smart_Farm':
+            router.replace('/sf');
+            break;
+          case 'admin':
+            router.replace('/admin');
+            break;
+          default:
+            router.replace('/AWS');
+        }
+      }, 500);
     } catch (error) {
       console.error('Error checking token:', error);
       setCheckingToken(false);
     }
   };
+
 
   const validateForm = () => {
     let isValid = true;
@@ -169,7 +176,7 @@ export default function LoginScreen() {
 
     try {
       const apiUrl = `${API_URL}/api-app/auth/login.php`;
-      
+
       // Add timeout to fetch
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -194,7 +201,7 @@ export default function LoginScreen() {
       }
 
       const json = await response.json();
-
+      console.log(json);
       if (json.status === true) {
         // Simpan token & user data
         await AsyncStorage.setItem('user_token', json.token);
@@ -216,7 +223,7 @@ export default function LoginScreen() {
 
         // Navigate based on device type
         const deviceType = json.data.device_type;
-        const routes = {
+        const routes: { [key: string]: string } = {
           'AWS': '/AWS',
           'AWLR': '/AWLR',
           'Smart_Farm': '/sf',
@@ -236,7 +243,7 @@ export default function LoginScreen() {
       }
     } catch (error) {
       console.error('Login error:', error);
-      
+
       if (error.name === 'AbortError') {
         Alert.alert(
           'Timeout',
@@ -290,12 +297,12 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <StatusBar 
-        barStyle="dark-content" 
+      <StatusBar
+        barStyle="dark-content"
         backgroundColor="#ffffff"
         translucent={Platform.OS === 'android'}
       />
-      
+
       <ScrollView
         contentContainerStyle={[
           styles.scrollContainer,
@@ -304,10 +311,10 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Animated.View 
+        <Animated.View
           style={[
             styles.logoContainer,
-            { 
+            {
               opacity: fadeAnim,
               transform: [{ translateY: slideAnim }],
             }
@@ -321,13 +328,13 @@ export default function LoginScreen() {
             ]}
             resizeMode="contain"
           />
-        
+
         </Animated.View>
 
-        <Animated.View 
+        <Animated.View
           style={[
             styles.card,
-            { 
+            {
               opacity: fadeAnim,
               transform: [{ translateY: slideAnim }],
             }
@@ -339,7 +346,7 @@ export default function LoginScreen() {
                 <Ionicons name="log-in-outline" size={28} color="#06b6d4" />
                 <Text style={styles.title}>Masuk ke Akun</Text>
               </View>
-              
+
               {/* Username Input */}
               <View style={styles.inputContainer}>
                 <View style={styles.labelContainer}>
@@ -441,8 +448,8 @@ export default function LoginScreen() {
                   <Ionicons name="help-circle-outline" size={16} color="#64748b" />
                   <Text style={styles.footerLinkText}>Lupa password?</Text>
                 </TouchableOpacity>
-                
-                
+
+
               </View>
             </View>
           </BlurView>

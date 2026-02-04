@@ -1,31 +1,61 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  StyleSheet, Text, View, ScrollView, TouchableOpacity, 
-  Dimensions, SafeAreaView, ActivityIndicator, Alert 
-} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Picker } from '@react-native-picker/picker';
-import { LineChart } from 'react-native-chart-kit';
-import mqtt from 'mqtt';
 import { Buffer } from 'buffer';
+import mqtt, { MqttClient } from 'mqtt';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator, Alert,
+  Dimensions, SafeAreaView,
+  ScrollView,
+  StyleSheet, Text, View
+} from 'react-native';
+import { LineChart } from 'react-native-chart-kit';
 
 // Polyfill untuk MQTT di React Native
 global.Buffer = Buffer;
 
 const screenWidth = Dimensions.get("window").width;
 
+interface Sensor {
+  topic: string;
+  value: any;
+  code: string;
+  label: string;
+  type_id: string;
+  unit: string;
+}
+
+interface Device {
+  id: string | number;
+  zonawaktu: string | number;
+}
+
+interface Config {
+  status: boolean;
+  sensors: Sensor[];
+  mqtt_topics: string[];
+  device: Device;
+}
+
+interface ChartData {
+  labels: string[];
+  datasets: {
+    data: number[];
+  }[];
+}
+
 export default function PowerPage() {
   const [loading, setLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
-  const [config, setConfig] = useState(null);
-  const [sensorValues, setSensorValues] = useState({});
-  
+  const [config, setConfig] = useState<Config | null>(null);
+  const [sensorValues, setSensorValues] = useState<Record<string, any>>({});
+
   // Chart States
   const [chartSensor, setChartSensor] = useState("");
   const [chartPeriod, setChartPeriod] = useState("hari");
-  const [chartData, setChartData] = useState(null);
+  const [chartData, setChartData] = useState<ChartData | null>(null);
 
-  const clientRef = useRef(null);
+  const clientRef = useRef<MqttClient | null>(null);
   const lastMsgTime = useRef(Date.now());
 
   const API_URL = `${process.env.EXPO_PUBLIC_API_URL}`;
@@ -49,10 +79,10 @@ export default function PowerPage() {
         if (data.status) {
           setConfig(data);
           // Set initial values
-          const initials = {};
-          data.sensors.forEach(s => { initials[s.topic] = s.value; });
+          const initials: Record<string, any> = {};
+          data.sensors.forEach((s: any) => { initials[s.topic] = s.value; });
           setSensorValues(initials);
-          
+
           if (data.sensors.length > 0) setChartSensor(data.sensors[0].code);
         }
       } catch (e) {
@@ -87,16 +117,16 @@ export default function PowerPage() {
     });
 
     client.on("close", () => setIsConnected(false));
-    
+
     clientRef.current = client;
 
-    return () => { if(client) client.end(); };
+    return () => { if (client) client.end(); };
   }, [config]);
 
   // Fungsi untuk memformat waktu berdasarkan periode
   const formatTimeLabel = (timestamp, period) => {
     const date = new Date(timestamp);
-    
+
     if (period === 'hari') {
       // Format: HH:MM
       return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
@@ -109,7 +139,7 @@ export default function PowerPage() {
       // Format: DD/MM
       return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
     }
-    
+
     return timestamp;
   };
 
@@ -118,34 +148,35 @@ export default function PowerPage() {
     if (!config || !chartSensor) return;
 
     const fetchChart = async () => {
-      const url = `${process.env.EXPO_PUBLIC_API_DATA}/api/get-data?device_id=${config.device.id}&jenis=${chartSensor}&periode=${chartPeriod}&mode=ringkas&zonawaktu=${config.device.zonawaktu}`;
-      
+      const url = `${process.env.EXPO_PUBLIC_API_DATA}/api/get-data?device_id=${config.device.id}&jenis=${chartSensor}&periode=${chartPeriod}&limit=6&mode=ringkas&zonawaktu=${config.device.zonawaktu}`;
+
       try {
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${API_TOKEN_INTERNAL}` }
         });
         const json = await res.json();
-        
+        console.log("grafik", json);
+        console.log("grafik url", url);
         if (json.status && json.data.length > 0) {
           const labels = [];
           const dataPoints = [];
-          
+
           // Tentukan jumlah maksimal titik data untuk tampilan mobile
           const maxDataPoints = 10;
           const step = Math.max(1, Math.floor(json.data.length / maxDataPoints));
-          
+
           // Ambil data dengan interval yang merata
           for (let i = 0; i < json.data.length; i += step) {
             const item = json.data[i];
             labels.push(formatTimeLabel(item.recorded_at, chartPeriod));
             dataPoints.push(parseFloat(item.value));
           }
-          
+
           // Pastikan data terakhir selalu masuk
           if (json.data.length > 0) {
             const lastItem = json.data[json.data.length - 1];
             const lastLabel = formatTimeLabel(lastItem.recorded_at, chartPeriod);
-            
+
             // Cek apakah data terakhir sudah termasuk
             if (labels[labels.length - 1] !== lastLabel) {
               labels.push(lastLabel);
@@ -158,18 +189,18 @@ export default function PowerPage() {
             const reducedLabels = [];
             const reducedDataPoints = [];
             const reductionStep = Math.ceil(labels.length / 8);
-            
+
             for (let i = 0; i < labels.length; i += reductionStep) {
               reducedLabels.push(labels[i]);
               reducedDataPoints.push(dataPoints[i]);
             }
-            
+
             // Tambahkan data terakhir jika belum masuk
             if (reducedLabels[reducedLabels.length - 1] !== labels[labels.length - 1]) {
               reducedLabels.push(labels[labels.length - 1]);
               reducedDataPoints.push(dataPoints[dataPoints.length - 1]);
             }
-            
+
             setChartData({
               labels: reducedLabels,
               datasets: [{ data: reducedDataPoints }]
@@ -198,7 +229,7 @@ export default function PowerPage() {
   const sensorAmp = config?.sensors.find(s => s.type_id === 'amp');
   const currentVolt = sensorVolt ? getVal(sensorVolt.topic) : 0;
   const currentAmp = sensorAmp ? getVal(sensorAmp.topic) : 0;
-  
+
   const chargingWatts = (currentVolt * currentAmp).toFixed(1);
   let battPct = ((currentVolt - 10.8) / (14.7 - 10.8)) * 100;
   battPct = Math.max(0, Math.min(100, battPct));
@@ -207,7 +238,7 @@ export default function PowerPage() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#3b82f6" />
-        <Text style={{marginTop: 10}}>Memuat Data...</Text>
+        <Text style={{ marginTop: 10 }}>Memuat Data...</Text>
       </View>
     );
   }
@@ -220,21 +251,21 @@ export default function PowerPage() {
           <Text></Text>
           <Text style={styles.title}>Power System</Text>
           <View style={styles.statusRow}>
-            <View style={[styles.dot, {backgroundColor: isConnected ? '#22c55e' : '#ef4444'}]} />
-            <Text style={[styles.statusText, {color: isConnected ? '#22c55e' : '#ef4444'}]}>
+            <View style={[styles.dot, { backgroundColor: isConnected ? '#22c55e' : '#ef4444' }]} />
+            <Text style={[styles.statusText, { color: isConnected ? '#22c55e' : '#ef4444' }]}>
               {isConnected ? 'ONLINE' : 'OFFLINE'}
             </Text>
           </View>
         </View>
-   
+
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        
+
         {/* REALTIME VISUAL CARD */}
         <View style={styles.glassCard}>
           <Text style={styles.cardTitle}>Energi Realtime</Text>
-          
+
           <View style={styles.visualRow}>
             {/* Charging Power */}
             <View style={styles.mpptCircle}>
@@ -245,16 +276,16 @@ export default function PowerPage() {
 
             {/* Battery Info */}
             <View style={styles.batteryContainer}>
-               <View style={styles.batteryHead} />
-               <View style={styles.batteryBody}>
-                  <View style={[styles.batteryLevel, { 
-                    height: `${battPct}%`, 
-                    backgroundColor: battPct < 20 ? '#ef4444' : '#22c55e' 
-                  }]} />
-                  <View style={styles.batteryInfoOverlay}>
-                    <Text style={styles.battPctText}>{Math.round(battPct)}%</Text>
-                  </View>
-               </View>
+              <View style={styles.batteryHead} />
+              <View style={styles.batteryBody}>
+                <View style={[styles.batteryLevel, {
+                  height: `${battPct}%`,
+                  backgroundColor: battPct < 20 ? '#ef4444' : '#22c55e'
+                }]} />
+                <View style={styles.batteryInfoOverlay}>
+                  <Text style={styles.battPctText}>{Math.round(battPct)}%</Text>
+                </View>
+              </View>
             </View>
           </View>
         </View>
@@ -262,13 +293,13 @@ export default function PowerPage() {
         {/* CHART SECTION */}
         <View style={styles.glassCard}>
           <Text style={styles.cardTitle}>Grafik Monitoring</Text>
-          
+
           <View style={styles.pickerGroup}>
             <View style={styles.pickerWrapper}>
               <Picker
                 selectedValue={chartSensor}
                 onValueChange={(itemValue) => setChartSensor(itemValue)}
-                style={styles.picker} 
+                style={styles.picker}
               >
                 {config.sensors.map(s => (
                   <Picker.Item key={s.code} label={s.label} value={s.code} color="#27292cff" />
@@ -282,8 +313,8 @@ export default function PowerPage() {
                 onValueChange={(itemValue) => setChartPeriod(itemValue)}
                 style={styles.picker}
               >
-                <Picker.Item label="Hari Ini" value="hari"  color="#27292cff"/>
-                <Picker.Item label="7 Hari" value="minggu_ini" color="#27292cff"/>
+                <Picker.Item label="Hari Ini" value="hari" color="#27292cff" />
+                <Picker.Item label="7 Hari" value="minggu_ini" color="#27292cff" />
                 <Picker.Item label="30 Hari" value="bulan" color="#27292cff" />
               </Picker>
             </View>
@@ -330,8 +361,8 @@ export default function PowerPage() {
             </View>
           ))}
         </View>
-        
-        <View style={{height: 40}} />
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -366,16 +397,16 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   statusText: { fontSize: 12, fontWeight: 'bold' },
   logoutBtn: { padding: 8 },
-  
+
   content: { padding: 15 },
   glassCard: {
     backgroundColor: '#fff', borderRadius: 16, padding: 15, marginBottom: 15,
     elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10
   },
   cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#475569', marginBottom: 15 },
-  
+
   visualRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 10 },
-  mpptCircle: { 
+  mpptCircle: {
     width: 120, height: 120, borderRadius: 60, borderWidth: 8, borderColor: '#3b82f6',
     justifyContent: 'center', alignItems: 'center', backgroundColor: '#eff6ff'
   },
@@ -385,13 +416,13 @@ const styles = StyleSheet.create({
 
   batteryContainer: { alignItems: 'center' },
   batteryHead: { width: 20, height: 8, backgroundColor: '#94a3b8', borderTopLeftRadius: 4, borderTopRightRadius: 4 },
-  batteryBody: { 
-    width: 60, height: 100, borderWidth: 3, borderColor: '#94a3b8', 
-    borderRadius: 6, justifyContent: 'flex-end', overflow: 'hidden' 
+  batteryBody: {
+    width: 60, height: 100, borderWidth: 3, borderColor: '#94a3b8',
+    borderRadius: 6, justifyContent: 'flex-end', overflow: 'hidden'
   },
   batteryLevel: { width: '100%' },
-  batteryInfoOverlay: { 
-    ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center' 
+  batteryInfoOverlay: {
+    ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center'
   },
   battPctText: { fontWeight: 'bold', color: '#1e293b', fontSize: 16 },
 

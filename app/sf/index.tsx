@@ -1,21 +1,20 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import {
-  StyleSheet,
-  Text,
-  View,
-  ScrollView,
-  SafeAreaView,
-  TouchableOpacity,
-  Dimensions,
-  ActivityIndicator,
-  StatusBar,
-} from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Picker } from '@react-native-picker/picker';
-import { LineChart } from 'react-native-chart-kit';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import mqtt from 'mqtt';
 import { Buffer } from 'buffer';
+import mqtt from 'mqtt';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Dimensions,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
+import { LineChart } from 'react-native-chart-kit';
 
 // Polyfill untuk MQTT di React Native
 global.Buffer = Buffer;
@@ -38,11 +37,11 @@ const timeAgo = (dateString) => {
 
 // --- Default Data Structures ---
 const DEFAULT_DATA = {
-  device: { 
-    id: '', 
-    name: 'Smart Farm', 
-    lokasi: 'Memuat...', 
-    zonawaktu: 'WIB' 
+  device: {
+    id: '',
+    name: 'Smart Farm',
+    lokasi: 'Memuat...',
+    zonawaktu: 'WIB'
   },
   sensors: {
     soil_moist: { topic: 'soil_moist_fallback', value: '0', unit: '%' },
@@ -67,7 +66,7 @@ export default function SmartFarmDashboard() {
   const [lastUpdateTxt, setLastUpdateTxt] = useState("");
   const [lastDataTimestamp, setLastDataTimestamp] = useState("");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  
+
   // Chart States
   const [selectedChart, setSelectedChart] = useState("");
   const [selectedPeriod, setSelectedPeriod] = useState("hari");
@@ -94,10 +93,10 @@ export default function SmartFarmDashboard() {
 
       if (json.status) {
         setData(json);
-        
+
         // Initialize live values from sensor data
         const initialMap = {};
-        const mapVal = (s) => { 
+        const mapVal = (s) => {
           if (s) {
             const value = parseFloat(s.value);
             initialMap[s.topic] = isNaN(value) ? 0 : value;
@@ -108,18 +107,18 @@ export default function SmartFarmDashboard() {
         mapVal(json.sensors.soil_temp);
         mapVal(json.sensors.soil_ph);
         mapVal(json.sensors.battery);
-        
+
         // Initialize NPK and CHEM sensors
         if (json.sensors.npk) {
           json.sensors.npk.forEach(s => mapVal(s));
         }
-        
+
         if (json.sensors.chem) {
           json.sensors.chem.forEach(s => mapVal(s));
         }
 
         setLiveValues(initialMap);
-        
+
         // Set initial chart selection if available
         if (json.charts && json.charts.length > 0) {
           setSelectedChart(json.charts[0].val);
@@ -139,9 +138,9 @@ export default function SmartFarmDashboard() {
   // --- 2. FALLBACK API LOGIC ---
   const fetchLastKnownData = useCallback(async () => {
     if (!data || !data.device.id) return;
-    
+
     const url = `${API_DATA_URL}/api/get-data?device_id=${data.device.id}&periode=now&zonawaktu=${data.device.zonawaktu}`;
-    
+
     try {
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${API_TOKEN}` }
@@ -151,14 +150,14 @@ export default function SmartFarmDashboard() {
       if (json.status && json.data) {
         const dbUpdates = {};
         let newestTime = "";
-        
+
         // Collect all sensors
         const allSensors = [
-          data.sensors.soil_moist, 
-          data.sensors.soil_temp, 
-          data.sensors.soil_ph, 
+          data.sensors.soil_moist,
+          data.sensors.soil_temp,
+          data.sensors.soil_ph,
           data.sensors.battery,
-          ...(data.sensors.npk || []), 
+          ...(data.sensors.npk || []),
           ...(data.sensors.chem || [])
         ].filter(Boolean);
 
@@ -169,7 +168,7 @@ export default function SmartFarmDashboard() {
             const topicSuffix = topicParts[topicParts.length - 1];
             return topicSuffix === d.parameter_name;
           });
-          
+
           if (sensor) {
             const value = parseFloat(d.value);
             if (!isNaN(value)) {
@@ -178,9 +177,9 @@ export default function SmartFarmDashboard() {
             }
           }
         });
-        
+
         setLiveValues(prev => ({ ...prev, ...dbUpdates }));
-        
+
         if (newestTime) {
           setLastDataTimestamp(newestTime);
           setLastUpdateTxt(timeAgo(newestTime));
@@ -234,7 +233,7 @@ export default function SmartFarmDashboard() {
     }, 5000);
 
     clientRef.current = client;
-    
+
     return () => {
       clearInterval(watchdog);
       client.end(true);
@@ -244,10 +243,10 @@ export default function SmartFarmDashboard() {
   // --- 4. CHART DATA FETCHING ---
   useEffect(() => {
     if (!selectedChart || !data || !data.device.id || isInitialLoad) return;
-    
+
     setLoadingChart(true);
 
-    const url = `${API_DATA_URL}/api/get-data?device_id=${data.device.id}&jenis=${selectedChart}&periode=${selectedPeriod}&mode=ringkas&zonawaktu=${data.device.zonawaktu}`;
+    const url = `${API_DATA_URL}/api/get-data?device_id=${data.device.id}&jenis=${selectedChart}&periode=${selectedPeriod}&limit=8&mode=ringkas&zonawaktu=${data.device.zonawaktu}`;
 
     fetch(url, {
       headers: { Authorization: `Bearer ${API_TOKEN}` }
@@ -282,8 +281,8 @@ export default function SmartFarmDashboard() {
   // --- Helper Functions ---
   const getVal = (sensor) => {
     if (!sensor || !sensor.topic) return 0;
-    return liveValues[sensor.topic] !== undefined 
-      ? liveValues[sensor.topic] 
+    return liveValues[sensor.topic] !== undefined
+      ? liveValues[sensor.topic]
       : (sensor.value ? parseFloat(sensor.value) : 0);
   };
 
@@ -332,7 +331,7 @@ export default function SmartFarmDashboard() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      
+
       {/* Initial Loading Overlay */}
       {isInitialLoad && (
         <View style={styles.initialLoadingOverlay}>
@@ -351,15 +350,17 @@ export default function SmartFarmDashboard() {
         </View>
         <View style={styles.statusContainer}>
           <View style={[
-            styles.statusDot, 
-            { backgroundColor: connectionStatus === 'ONLINE' ? '#10b981' : 
-                          connectionStatus === 'CONNECTING' ? '#f59e0b' : '#ef4444' }
+            styles.statusDot,
+            {
+              backgroundColor: connectionStatus === 'ONLINE' ? '#10b981' :
+                connectionStatus === 'CONNECTING' ? '#f59e0b' : '#ef4444'
+            }
           ]} />
           <Text style={[
-            styles.statusText, 
-            { 
-              color: connectionStatus === 'ONLINE' ? '#10b981' : 
-                    connectionStatus === 'CONNECTING' ? '#f59e0b' : '#ef4444' 
+            styles.statusText,
+            {
+              color: connectionStatus === 'ONLINE' ? '#10b981' :
+                connectionStatus === 'CONNECTING' ? '#f59e0b' : '#ef4444'
             }
           ]}>
             {connectionStatus}
@@ -370,33 +371,33 @@ export default function SmartFarmDashboard() {
         </View>
       </View>
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         style={isInitialLoad ? { opacity: 0.7 } : {}}
       >
-        
+
         {/* TOP SENSOR GRID */}
         <View style={styles.grid}>
           {/* Kelembapan */}
           <View style={[styles.card, isInitialLoad && styles.disabledCard]}>
             <View style={styles.cardHeader}>
               <Text style={styles.label}>Kelembapan</Text>
-              <MaterialCommunityIcons 
-                name="water-percent" 
-                size={24} 
-                color={isInitialLoad ? "#94a3b8" : "#0ea5e9"} 
+              <MaterialCommunityIcons
+                name="water-percent"
+                size={24}
+                color={isInitialLoad ? "#94a3b8" : "#0ea5e9"}
               />
             </View>
             <Text style={[
-              styles.valBig, 
+              styles.valBig,
               { color: isInitialLoad ? "#94a3b8" : '#0ea5e9' }
             ]}>
               {isInitialLoad ? '--' : soilMoist.toFixed(0)}%
             </Text>
             <View style={styles.progressBg}>
               <View style={[
-                styles.progressFill, 
-                { 
+                styles.progressFill,
+                {
                   width: isInitialLoad ? '50%' : `${Math.min(100, soilMoist)}%`,
                   backgroundColor: isInitialLoad ? "#94a3b8" : '#0ea5e9'
                 }
@@ -413,23 +414,23 @@ export default function SmartFarmDashboard() {
           <View style={[styles.card, isInitialLoad && styles.disabledCard]}>
             <View style={styles.cardHeader}>
               <Text style={styles.label}>Suhu Tanah</Text>
-              <MaterialCommunityIcons 
-                name="thermometer" 
-                size={24} 
-                color={isInitialLoad ? "#94a3b8" : "#f59e0b"} 
+              <MaterialCommunityIcons
+                name="thermometer"
+                size={24}
+                color={isInitialLoad ? "#94a3b8" : "#f59e0b"}
               />
             </View>
             <Text style={[
-              styles.valBig, 
+              styles.valBig,
               { color: isInitialLoad ? "#94a3b8" : '#f59e0b' }
             ]}>
               {isInitialLoad ? '--.-' : soilTemp.toFixed(1)}°C
             </Text>
             <View style={styles.progressBg}>
               <View style={[
-                styles.progressFill, 
-                { 
-                  width: isInitialLoad ? '30%' : `${Math.min(100, (soilTemp/50)*100)}%`,
+                styles.progressFill,
+                {
+                  width: isInitialLoad ? '30%' : `${Math.min(100, (soilTemp / 50) * 100)}%`,
                   backgroundColor: isInitialLoad ? "#94a3b8" : '#f59e0b'
                 }
               ]} />
@@ -447,14 +448,14 @@ export default function SmartFarmDashboard() {
           <View style={[styles.card, isInitialLoad && styles.disabledCard]}>
             <View style={styles.cardHeader}>
               <Text style={styles.label}>pH Tanah</Text>
-              <MaterialCommunityIcons 
-                name="flask-outline" 
-                size={24} 
-                color={isInitialLoad ? "#94a3b8" : "#8b5cf6"} 
+              <MaterialCommunityIcons
+                name="flask-outline"
+                size={24}
+                color={isInitialLoad ? "#94a3b8" : "#8b5cf6"}
               />
             </View>
             <Text style={[
-              styles.valBig, 
+              styles.valBig,
               { color: isInitialLoad ? "#94a3b8" : '#8b5cf6' }
             ]}>
               {isInitialLoad ? '--.-' : soilPh.toFixed(1)}
@@ -471,14 +472,14 @@ export default function SmartFarmDashboard() {
           <View style={[styles.card, isInitialLoad && styles.disabledCard]}>
             <View style={styles.cardHeader}>
               <Text style={styles.label}>Baterai</Text>
-              <MaterialCommunityIcons 
-                name={battPct < 20 ? "battery-alert" : "battery-high"} 
-                size={24} 
-                color={isInitialLoad ? "#94a3b8" : (battPct < 20 ? "#ef4444" : "#10b981")} 
+              <MaterialCommunityIcons
+                name={battPct < 20 ? "battery-alert" : "battery-high"}
+                size={24}
+                color={isInitialLoad ? "#94a3b8" : (battPct < 20 ? "#ef4444" : "#10b981")}
               />
             </View>
             <Text style={[
-              styles.valBig, 
+              styles.valBig,
               { color: isInitialLoad ? "#94a3b8" : (battPct < 20 ? "#ef4444" : "#10b981") }
             ]}>
               {isInitialLoad ? '--' : battPct}%
@@ -543,27 +544,27 @@ export default function SmartFarmDashboard() {
         <View style={[styles.chartCard, isInitialLoad && styles.disabledCard]}>
           <View style={styles.chartHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <MaterialCommunityIcons 
-                name="chart-timeline-variant" 
-                size={20} 
-                color={isInitialLoad ? "#94a3b8" : "#1e293b"} 
+              <MaterialCommunityIcons
+                name="chart-timeline-variant"
+                size={20}
+                color={isInitialLoad ? "#94a3b8" : "#1e293b"}
               />
               <Text style={[
-                styles.cardTitle, 
+                styles.cardTitle,
                 { color: isInitialLoad ? "#94a3b8" : "#1e293b" }
               ]}>
                 Analitik Grafik
               </Text>
             </View>
           </View>
-          
+
           <View style={styles.pickerRow}>
             <View style={[styles.pickerWrapper, isInitialLoad && styles.disabledPicker]}>
-              <MaterialCommunityIcons 
-                name="database-search" 
-                size={16} 
-                color={isInitialLoad ? "#cbd5e1" : "#64748b"} 
-                style={styles.pickerIcon} 
+              <MaterialCommunityIcons
+                name="database-search"
+                size={16}
+                color={isInitialLoad ? "#cbd5e1" : "#64748b"}
+                style={styles.pickerIcon}
               />
               <Picker
                 selectedValue={selectedChart}
@@ -574,25 +575,25 @@ export default function SmartFarmDashboard() {
               >
                 {data.charts && data.charts.length > 0 ? (
                   data.charts.map(c => (
-                    <Picker.Item 
-                      key={c.val} 
-                      label={c.label} 
-                      value={c.val} 
-                      style={{fontSize: 14}} 
+                    <Picker.Item
+                      key={c.val}
+                      label={c.label}
+                      value={c.val}
+                      style={{ fontSize: 14 }}
                     />
                   ))
                 ) : (
-                  <Picker.Item label="Tidak ada grafik" value="" style={{fontSize: 14}} />
+                  <Picker.Item label="Tidak ada grafik" value="" style={{ fontSize: 14 }} />
                 )}
               </Picker>
             </View>
 
             <View style={[styles.pickerWrapper, isInitialLoad && styles.disabledPicker]}>
-              <MaterialCommunityIcons 
-                name="calendar-range" 
-                size={16} 
-                color={isInitialLoad ? "#cbd5e1" : "#64748b"} 
-                style={styles.pickerIcon} 
+              <MaterialCommunityIcons
+                name="calendar-range"
+                size={16}
+                color={isInitialLoad ? "#cbd5e1" : "#64748b"}
+                style={styles.pickerIcon}
               />
               <Picker
                 selectedValue={selectedPeriod}
@@ -601,15 +602,15 @@ export default function SmartFarmDashboard() {
                 dropdownIconColor={isInitialLoad ? "#cbd5e1" : "#64748b"}
                 enabled={!isInitialLoad}
               >
-                <Picker.Item 
-                  label="24 Jam" 
-                  value="hari" 
-                  style={{fontSize: 14, color: isInitialLoad ? '#cbd5e1' : '#101011'}} 
+                <Picker.Item
+                  label="24 Jam"
+                  value="hari"
+                  style={{ fontSize: 14, color: isInitialLoad ? '#cbd5e1' : '#101011' }}
                 />
-                <Picker.Item 
-                  label="Minggu Ini" 
-                  value="minggu_ini" 
-                  style={{fontSize: 14, color: isInitialLoad ? '#cbd5e1' : '#101011'}} 
+                <Picker.Item
+                  label="Minggu Ini"
+                  value="minggu_ini"
+                  style={{ fontSize: 14, color: isInitialLoad ? '#cbd5e1' : '#101011' }}
                 />
               </Picker>
             </View>
@@ -661,12 +662,12 @@ export default function SmartFarmDashboard() {
 
 // --- Styles ---
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
+  container: {
+    flex: 1,
     backgroundColor: '#f8fafc',
     position: 'relative'
   },
-  
+
   // Initial Loading Overlay
   initialLoadingOverlay: {
     position: 'absolute',
@@ -685,7 +686,7 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontWeight: '500',
   },
-  
+
   // Skeleton Loading
   skeletonOverlay: {
     position: 'absolute',
@@ -698,7 +699,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 16,
   },
-  
+
   // Disabled States
   disabledCard: {
     opacity: 0.7,
@@ -707,110 +708,110 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
     borderColor: '#e2e8f0',
   },
-  
+
   // Header
   header: {
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20, 
-    backgroundColor: '#fff', 
-    borderBottomWidth: 1, 
+    padding: 20,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
     zIndex: 1,
   },
-  headerTitle: { 
-    fontSize: 20, 
-    fontWeight: 'bold', 
-    color: '#0f172a' 
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#0f172a'
   },
-  headerSubtitle: { 
-    fontSize: 12, 
-    color: '#64748b' 
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#64748b'
   },
-  statusContainer: { 
-    alignItems: 'flex-end' 
+  statusContainer: {
+    alignItems: 'flex-end'
   },
-  statusDot: { 
-    width: 8, 
-    height: 8, 
-    borderRadius: 4, 
-    marginBottom: 2 
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginBottom: 2
   },
-  statusText: { 
-    fontSize: 10, 
-    fontWeight: 'bold' 
+  statusText: {
+    fontSize: 10,
+    fontWeight: 'bold'
   },
-  syncText: { 
-    fontSize: 9, 
-    color: '#f59e0b' 
+  syncText: {
+    fontSize: 9,
+    color: '#f59e0b'
   },
-  
+
   // Scroll Content
-  scrollContent: { 
-    padding: 15 
+  scrollContent: {
+    padding: 15
   },
-  
+
   // Grid & Cards
-  grid: { 
-    flexDirection: 'row', 
-    gap: 12, 
-    marginBottom: 12 
+  grid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12
   },
   card: {
-    flex: 1, 
-    backgroundColor: '#fff', 
-    padding: 15, 
+    flex: 1,
+    backgroundColor: '#fff',
+    padding: 15,
     borderRadius: 16,
-    elevation: 2, 
-    shadowColor: '#000', 
-    shadowOpacity: 0.05, 
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
     shadowRadius: 10,
     position: 'relative',
   },
-  cardHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    marginBottom: 10 
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10
   },
-  label: { 
-    fontSize: 11, 
-    fontWeight: 'bold', 
-    color: '#64748b', 
-    textTransform: 'uppercase' 
+  label: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#64748b',
+    textTransform: 'uppercase'
   },
-  subLabel: { 
-    fontSize: 10, 
-    color: '#94a3b8', 
-    marginTop: 4 
+  subLabel: {
+    fontSize: 10,
+    color: '#94a3b8',
+    marginTop: 4
   },
-  valBig: { 
-    fontSize: 24, 
-    fontWeight: '900' 
+  valBig: {
+    fontSize: 24,
+    fontWeight: '900'
   },
-  
+
   // Progress Bars
-  progressBg: { 
-    height: 6, 
-    backgroundColor: '#f1f5f9', 
-    borderRadius: 3, 
-    marginTop: 10, 
-    overflow: 'hidden' 
+  progressBg: {
+    height: 6,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 3,
+    marginTop: 10,
+    overflow: 'hidden'
   },
-  progressFill: { 
-    height: '100%', 
-    borderRadius: 3 
+  progressFill: {
+    height: '100%',
+    borderRadius: 3
   },
 
   // Sections
-  sectionTitle: { 
-    fontSize: 14, 
-    fontWeight: 'bold', 
-    color: '#475569', 
-    marginVertical: 15, 
-    marginLeft: 5 
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#475569',
+    marginVertical: 15,
+    marginLeft: 5
   },
-  
+
   // Nutrient Grid
   gridWrapper: {
     flexDirection: 'row',
@@ -832,30 +833,30 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     position: 'relative',
   },
-  listIcon: { 
-    width: 32, 
-    height: 32, 
-    borderRadius: 8, 
-    backgroundColor: '#ecfdf5', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    marginRight: 10 
+  listIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#ecfdf5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10
   },
-  listLabel: { 
-    fontSize: 12, 
-    color: '#030303', 
-    fontWeight: 'bold', 
-    textTransform: 'uppercase' 
+  listLabel: {
+    fontSize: 12,
+    color: '#030303',
+    fontWeight: 'bold',
+    textTransform: 'uppercase'
   },
-  listVal: { 
-    fontSize: 20, 
-    fontWeight: 'bold', 
-    color: '#1e293b' 
+  listVal: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b'
   },
-  listUnit: { 
-    fontSize: 16, 
-    color: '#94a3b8', 
-    fontWeight: 'normal' 
+  listUnit: {
+    fontSize: 16,
+    color: '#94a3b8',
+    fontWeight: 'normal'
   },
 
   // Chart Section
@@ -876,20 +877,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 15,
   },
-  cardTitle: { 
-    fontSize: 14, 
-    fontWeight: 'bold', 
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
   },
-  pickerRow: { 
-    flexDirection: 'row', 
-    gap: 10, 
-    marginBottom: 15 
+  pickerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap', // Allow wrapping on small screens
+    gap: 10,
+    marginBottom: 15
   },
-  pickerWrapper: { 
-    flex: 1, 
-    backgroundColor: '#f8fafc', 
-    borderRadius: 10, 
-    borderWidth: 1, 
+  pickerWrapper: {
+    flex: 1,
+    minWidth: 140, // Ensure minimum width so text isn't cut off
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    borderWidth: 1,
     borderColor: '#e2e8f0',
     flexDirection: 'row',
     alignItems: 'center',
@@ -897,20 +900,20 @@ const styles = StyleSheet.create({
   pickerIcon: {
     marginLeft: 10,
   },
-  picker: { 
-    flex: 1, 
-    height: 40,
+  picker: {
+    flex: 1,
+    height: 45, // Slightly taller for better touch area
     color: '#0f172a',
   },
   chartContainer: {
     minHeight: 250,
     justifyContent: 'center',
   },
-  chart: { 
-    marginVertical: 10, 
-    borderRadius: 16 
+  chart: {
+    marginVertical: 10,
+    borderRadius: 16
   },
-  
+
   // Loading & No Data States
   loaderContainer: {
     height: 220,

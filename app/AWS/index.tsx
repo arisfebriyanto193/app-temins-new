@@ -1,25 +1,23 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
+import mqtt from 'mqtt';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  Dimensions,
-  RefreshControl,
-  StatusBar,
   ActivityIndicator,
   Animated,
+  Dimensions,
   Easing,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
-import mqtt from 'mqtt';
-import { useRouter } from 'expo-router';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { SafeAreaView } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -110,7 +108,7 @@ const formatDate = (date: Date) => {
 };
 
 const getIconForSensor = (type: string) => {
-  switch(type) {
+  switch (type) {
     case 'temp': return 'thermometer';
     case 'hum': return 'water';
     case 'rain': return 'rainy';
@@ -137,7 +135,7 @@ export default function DashboardScreen() {
   const [historyConfig, setHistoryConfig] = useState<HistoryConfig>(DEFAULT_HISTORY_CONFIG);
   const [sensorValues, setSensorValues] = useState<Record<string, number>>({});
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  
+
   const [rain1h, setRain1h] = useState("0.0");
   const [rainYest, setRainYest] = useState("0.0");
 
@@ -157,7 +155,7 @@ export default function DashboardScreen() {
   // --- Refs & Animation ---
   const clientRef = useRef<mqtt.MqttClient | null>(null);
   const lastMsgTime = useRef<number>(Date.now());
-  const timeAgoInterval = useRef<NodeJS.Timeout | null>(null);
+  const timeAgoInterval = useRef<NodeJS.Timeout | number | null>(null);
   const animatedWindDir = useRef(new Animated.Value(0)).current;
 
   const apiUrl = process.env.EXPO_PUBLIC_API_URL;
@@ -168,7 +166,7 @@ export default function DashboardScreen() {
   const fetchConfig = async () => {
     const token = await AsyncStorage.getItem('user_token');
     if (!token) {
-      router.replace('/');
+      router.replace('../');
       return;
     }
 
@@ -178,13 +176,13 @@ export default function DashboardScreen() {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      
+
       if (data.status) {
         const processedSensors = data.sensors.map((s: any) => ({
           ...s,
           type: detectType(s.label)
         }));
-        
+
         const newConfig = { ...data, sensors: processedSensors };
         setConfig(newConfig);
 
@@ -211,7 +209,7 @@ export default function DashboardScreen() {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      
+
       if (data.status) {
         setHistoryConfig(data);
         if (data.sensors && data.sensors.length > 0 && !selectedSensor) {
@@ -235,23 +233,38 @@ export default function DashboardScreen() {
 
   // Cari sensor arah angin untuk animasi
   const windDirSensor = useMemo(() => config?.sensors?.find(s => s.type === 'wind_dir'), [config]);
-  
+
+  // Ref to track the continuous rotation value to avoid spinning incorrectly
+  const lastWindDirValue = useRef(0);
+
   useEffect(() => {
     if (windDirSensor) {
-      const targetValue = getVal(windDirSensor.topic);
+      const currentVal = lastWindDirValue.current;
+      const targetVal = getVal(windDirSensor.topic);
+
+      // Calculate shortest path
+      let delta = (targetVal - currentVal + 540) % 360 - 180;
+
+      const newVal = currentVal + delta;
+
       Animated.timing(animatedWindDir, {
-        toValue: targetValue,
-        duration: 1200, // Durasi rotasi agar terlihat smooth
+        toValue: newVal,
+        duration: 1200,
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }).start();
+
+      lastWindDirValue.current = newVal;
     }
   }, [sensorValues, windDirSensor]);
 
   // Interpolasi rotasi (dikurangi 45 derajat sesuai desain awal Anda)
+  // We use the raw value because it's now continuous (can be > 360 or < 0)
   const spinCompass = animatedWindDir.interpolate({
     inputRange: [0, 360],
     outputRange: ['-45deg', '315deg'],
+    // Important: extrapolate to allow values outside 0-360 range
+    extrapolate: 'extend',
   });
 
   // --- Fetch Chart Data ---
@@ -265,8 +278,8 @@ export default function DashboardScreen() {
       let url = '';
       const now = new Date();
       let startDate = new Date();
-      
-      switch(timeInterval) {
+
+      switch (timeInterval) {
         case 'hari':
           startDate.setDate(now.getDate() - 1);
           url = `${apiData}/api/get-data?device_id=${deviceId}&jenis=${sensorCode}&periode=hari&mode=ringkas&value=high&zonawaktu=${zonaWaktu}&limit=7`;
@@ -291,18 +304,18 @@ export default function DashboardScreen() {
 
       const res = await fetch(url, { headers: { 'Authorization': `Bearer ${apiToken}` } });
       const json = await res.json();
-      
+
       if (json.status && json.data && json.data.length > 0) {
         const validData = json.data.filter((d: any) => !isNaN(parseFloat(d.value)));
         validData.sort((a: any, b: any) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
-        
+
         const labels = validData.map((d: any) => {
           const dt = new Date(d.recorded_at);
           if (timeInterval === 'hari') return `${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`;
           else if (timeInterval === 'minggu_ini') return dt.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' });
           else return dt.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
         });
-        
+
         const values = validData.map((d: any) => parseFloat(d.value));
         setChartLabels(labels);
         setChartData(values);
@@ -476,7 +489,7 @@ export default function DashboardScreen() {
   const { mainTemp, humidity, windDir, windSpd, battery, solar, pressure, leftStack } = useMemo(() => {
     const sensors = config?.sensors || [];
     if (sensors.length === 0 && isInitialLoad) {
-      const f = (l:string, t:string, u:string, ty:string) => ({ label:l, topic:t, unit:u, value:0, type:ty, lokasi:'' });
+      const f = (l: string, t: string, u: string, ty: string) => ({ label: l, topic: t, unit: u, value: 0, type: ty, lokasi: '' });
       return {
         mainTemp: f('Suhu Udara', 't_f', '°C', 'temp'),
         humidity: f('Kelembapan', 'h_f', '%', 'hum'),
@@ -513,7 +526,7 @@ export default function DashboardScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -523,7 +536,6 @@ export default function DashboardScreen() {
             <Text style={styles.headerSubtitle}>{config.device.zona_waktu}</Text>
           </View>
         </View>
-        
         <View style={styles.headerRight}>
           <View style={[styles.statusBadge, { backgroundColor: isConnected ? '#dcfce7' : '#fee2e2' }]}>
             <View style={[styles.statusDot, { backgroundColor: isConnected ? '#22c55e' : '#ef4444' }]} />
@@ -542,7 +554,7 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      <ScrollView 
+      <ScrollView
         style={[styles.scrollView, isInitialLoad && styles.hiddenScrollView]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#06b6d4']} />}
       >
@@ -580,6 +592,9 @@ export default function DashboardScreen() {
               <View style={styles.compassContainer}>
                 <View style={styles.compass}>
                   <Text style={styles.compassN}>N</Text>
+                  <Text style={styles.compassE}>E</Text>
+                  <Text style={styles.compassS}>S</Text>
+                  <Text style={styles.compassW}>W</Text>
                   <Animated.View style={[styles.compassArrow, { transform: [{ rotate: spinCompass }] }]}>
                     <Ionicons name="navigate" size={42} color="#06b6d4" />
                   </Animated.View>
@@ -587,7 +602,7 @@ export default function DashboardScreen() {
                 <Text style={styles.compassDegree}>{isInitialLoad ? '---' : getVal(windDir.topic)}°</Text>
               </View>
             </View>
-            <View style={styles.windSpeedSection}>  
+            <View style={styles.windSpeedSection}>
               <View style={styles.speedContainer}>
                 <Text style={styles.valueNumberangin}>
                   {isInitialLoad ? '--.-' : getVal(windSpd.topic)}
@@ -653,14 +668,14 @@ export default function DashboardScreen() {
             <View style={styles.batteryDisplayRow}>
               <View style={styles.batteryContainer}>
                 <View style={styles.batteryBody}>
-                  <View 
+                  <View
                     style={[
-                      styles.batteryLevel, 
-                      { 
+                      styles.batteryLevel,
+                      {
                         width: `${getBatteryPercent(getVal(battery.topic))}%`,
                         backgroundColor: getVal(battery.topic) < 11.5 ? '#ef4444' : '#22c55e'
                       }
-                    ]} 
+                    ]}
                   />
                 </View>
                 <View style={styles.batteryCap} />
@@ -753,9 +768,9 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
-  header: { 
-    flexDirection: 'row', justifyContent: 'space-between', padding: 16, 
-    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingTop: 40 
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', padding: 16,
+    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingTop: 40
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerTextContainer: {},
@@ -783,6 +798,9 @@ const styles = StyleSheet.create({
   windCompassSection: { alignItems: 'center', paddingVertical: 10 },
   compass: { width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
   compassN: { position: 'absolute', top: 5, fontSize: 10, fontWeight: 'bold', color: '#ef4444' },
+  compassE: { position: 'absolute', right: 5, fontSize: 10, fontWeight: 'bold', color: '#94a3b8' },
+  compassS: { position: 'absolute', bottom: 5, fontSize: 10, fontWeight: 'bold', color: '#94a3b8' },
+  compassW: { position: 'absolute', left: 5, fontSize: 10, fontWeight: 'bold', color: '#94a3b8' },
   compassArrow: { width: 50, height: 50, justifyContent: 'center', alignItems: 'center' },
   compassDegree: { textAlign: 'center', marginTop: 8, fontSize: 20, fontWeight: 'bold' },
   windSpeedSection: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 10 },
@@ -795,6 +813,7 @@ const styles = StyleSheet.create({
   chartControls: { flexDirection: 'row', gap: 10, marginBottom: 15 },
   dropdownButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f8fafc', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0' },
   dropdownButtonText: { fontSize: 13, color: '#0f172a' },
+  disabledText: { color: '#cbd5e1' },
   chart: { marginTop: 10, borderRadius: 10 },
   chartLoading: { height: 150, justifyContent: 'center', alignItems: 'center' },
   noDataContainer: { height: 100, justifyContent: 'center', alignItems: 'center' },
@@ -806,7 +825,11 @@ const styles = StyleSheet.create({
   modalItemText: { fontSize: 16 },
   modalCloseButton: { marginTop: 15, backgroundColor: '#06b6d4', padding: 12, borderRadius: 8, alignItems: 'center' },
   modalCloseButtonText: { color: '#fff', fontWeight: 'bold' },
+  modalScroll: { maxHeight: 300 },
   initialLoadingContainer: { position: 'absolute', inset: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff', zIndex: 999 },
   initialLoadingText: { marginTop: 10, color: '#64748b' },
   flexRowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  compassContainer: { alignItems: 'center' },
+  speedContainer: { alignItems: 'center' },
+  hiddenScrollView: { display: 'none' },
 });
