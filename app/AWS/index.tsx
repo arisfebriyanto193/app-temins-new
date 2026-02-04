@@ -157,6 +157,7 @@ export default function DashboardScreen() {
   const lastMsgTime = useRef<number>(Date.now());
   const timeAgoInterval = useRef<NodeJS.Timeout | number | null>(null);
   const animatedWindDir = useRef(new Animated.Value(0)).current;
+  const hasReceivedData = useRef(false);
 
   const apiUrl = process.env.EXPO_PUBLIC_API_URL;
   const apiData = process.env.EXPO_PUBLIC_API_DATA;
@@ -381,6 +382,17 @@ export default function DashboardScreen() {
     const clientId = "aws_rn_" + Math.random().toString(16).substring(2, 10);
     const client = mqtt.connect(brokerURL, { clientId, clean: true, reconnectPeriod: 5000 });
 
+    // Reset data flag
+    hasReceivedData.current = false;
+
+    // Timeout: Jika dalam 1 detik tidak ada data MQTT, anggap offline & ambil dari API
+    const initialTimeout = setTimeout(() => {
+      if (!hasReceivedData.current) {
+        setIsConnected(false);
+        fetchLastKnownData();
+      }
+    }, 1000);
+
     client.on("connect", () => {
       setIsConnected(true);
       setLastUpdateTxt("");
@@ -391,6 +403,9 @@ export default function DashboardScreen() {
     });
 
     client.on("message", (topic, payload) => {
+      hasReceivedData.current = true;
+      clearTimeout(initialTimeout); // Clear timeout jika data masuk
+
       const val = parseFloat(payload.toString());
       lastMsgTime.current = Date.now();
       setIsConnected(true);
@@ -416,6 +431,7 @@ export default function DashboardScreen() {
 
     return () => {
       clearInterval(watchdog);
+      clearTimeout(initialTimeout);
       if (client) client.end(true);
     };
   }, [config, fetchLastKnownData]);
