@@ -126,7 +126,8 @@ export default function DashboardScreen() {
   const router = useRouter();
 
   // --- States ---
-  const [isConnected, setIsConnected] = useState(false);
+  type ConnectionStatus = 'WAITING' | 'ONLINE' | 'OFFLINE';
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('WAITING');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [lastUpdateTxt, setLastUpdateTxt] = useState("");
   const [lastDataTimestamp, setLastDataTimestamp] = useState("");
@@ -135,7 +136,7 @@ export default function DashboardScreen() {
   const [config, setConfig] = useState<ConfigData>(DEFAULT_CONFIG);
   const [historyConfig, setHistoryConfig] = useState<HistoryConfig>(DEFAULT_HISTORY_CONFIG);
   const [sensorValues, setSensorValues] = useState<Record<string, number>>({});
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true); // Keep true initially for config, but we might hide loading earlier
 
   const [rain1h, setRain1h] = useState("-");
   const [rainYest, setRainYest] = useState("-");
@@ -388,50 +389,71 @@ export default function DashboardScreen() {
     const clientId = "aws_rn_" + Math.random().toString(16).substring(2, 10);
     const client = mqtt.connect(brokerURL, { clientId, clean: true, reconnectPeriod: 5000 });
 
-    // Reset data flag
+    // Reset data flag and set status to WAITING
     hasReceivedData.current = false;
+    setConnectionStatus('WAITING');
+    setLastUpdateTxt("Menunggu data...");
 
-    // Timeout: Jika dalam 1 detik tidak ada data MQTT, anggap offline & ambil dari API
+    // Timeout: Tunggu 30 detik untuk data MQTT
+    // Jika data masuk -> status jadi ONLINE (di on message)
+    // Jika timeout -> status jadi OFFLINE & ambil data API
     const initialTimeout = setTimeout(() => {
       if (!hasReceivedData.current) {
-        setIsConnected(false);
+        setConnectionStatus('OFFLINE');
+        setLastUpdateTxt("Offline (API Data)");
         fetchLastKnownData();
       }
-    }, 1000);
+    }, 30000); // 30 detik
 
     client.on("connect", () => {
-      setIsConnected(true);
-      setLastUpdateTxt("");
-      setLastDataTimestamp("");
-      lastMsgTime.current = Date.now();
+      // Connected to broker, but not necessarily receiving data yet.
+      // We keep WAITING status until data arrives or timeout.
       config.mqtt_topics.forEach((t) => client.subscribe(t));
       client.publish(`temins_iot/${config.device.id}/setting`, "4;1000");
     });
 
     client.on("message", (topic, payload) => {
-      hasReceivedData.current = true;
-      clearTimeout(initialTimeout); // Clear timeout jika data masuk
+      if (!hasReceivedData.current) {
+        hasReceivedData.current = true;
+        clearTimeout(initialTimeout); // Clear timeout jika data pertama masuk
+        setConnectionStatus('ONLINE');
+        setLastUpdateTxt("");
+        setLastDataTimestamp("");
+      }
+
+      // If we were OFFLINE before (maybe reconnected after timeout), switch to ONLINE
+      setConnectionStatus(prev => prev !== 'ONLINE' ? 'ONLINE' : prev);
 
       const val = parseFloat(payload.toString());
       lastMsgTime.current = Date.now();
-      setIsConnected(true);
-      setLastUpdateTxt("");
-      setLastDataTimestamp("");
+
       setSensorValues(prev => ({ ...prev, [topic]: val }));
     });
 
-    client.on("offline", () => { setIsConnected(false); fetchLastKnownData(); });
-    client.on("error", () => { setIsConnected(false); fetchLastKnownData(); });
+    client.on("offline", () => {
+      // Only set offline if we are past the waiting period or explicitly offline
+      if (hasReceivedData.current) { // If we were online, now offline
+        setConnectionStatus('OFFLINE');
+      }
+    });
+
+    client.on("error", () => {
+      // Similar to offline
+      if (hasReceivedData.current) {
+        setConnectionStatus('OFFLINE');
+      }
+    });
 
     clientRef.current = client;
 
+    // Watchdog doesn't need to force Fetch API if we already did it on timeout, logic simplifies
     const watchdog = setInterval(() => {
       const now = Date.now();
-      if (now - lastMsgTime.current > 5000) {
-        setIsConnected(prev => {
-          if (prev === true) { fetchLastKnownData(); return false; }
-          return prev;
-        });
+      // If we are marked ONLINE but haven't heard anything for 10s, maybe we lost connection?
+      if (connectionStatus === 'ONLINE' && now - lastMsgTime.current > 10000) {
+        // Optional: Could revert to WAITING or OFFLINE, usually keep ONLINE if socket is alive
+        // For now let's leave it, or maybe just set warning.
+        // User request focused on initial flow.
       }
     }, 5000);
 
@@ -440,18 +462,18 @@ export default function DashboardScreen() {
       clearTimeout(initialTimeout);
       if (client) client.end(true);
     };
-  }, [config, fetchLastKnownData]);
+  }, [config, fetchLastKnownData]); // Removed connectionStatus dependency loop
 
   // --- Time Ago Auto Updater ---
   useEffect(() => {
-    if (!isConnected && lastDataTimestamp) {
+    if (connectionStatus === 'OFFLINE' && lastDataTimestamp) {
       setLastUpdateTxt(timeAgo(lastDataTimestamp));
       timeAgoInterval.current = setInterval(() => setLastUpdateTxt(timeAgo(lastDataTimestamp)), 30000);
     } else {
       if (timeAgoInterval.current) clearInterval(timeAgoInterval.current);
     }
     return () => { if (timeAgoInterval.current) clearInterval(timeAgoInterval.current); };
-  }, [isConnected, lastDataTimestamp]);
+  }, [connectionStatus, lastDataTimestamp]);
 
   // --- Rain Data ---
   useEffect(() => {
@@ -561,13 +583,23 @@ export default function DashboardScreen() {
           </View>
         </View>
         <View style={styles.headerRight}>
-          <View style={[styles.statusBadge, { backgroundColor: isConnected ? '#dcfce7' : '#fee2e2' }]}>
-            <View style={[styles.statusDot, { backgroundColor: isConnected ? '#22c55e' : '#ef4444' }]} />
-            <Text style={[styles.statusText, { color: isConnected ? '#166534' : '#991b1b' }]}>
-              {isConnected ? 'ONLINE' : 'OFFLINE'}
+          <View style={[styles.statusBadge, {
+            backgroundColor: connectionStatus === 'ONLINE' ? '#dcfce7' :
+              connectionStatus === 'WAITING' ? '#fef3c7' : '#fee2e2'
+          }]}>
+            <View style={[styles.statusDot, {
+              backgroundColor: connectionStatus === 'ONLINE' ? '#22c55e' :
+                connectionStatus === 'WAITING' ? '#f59e0b' : '#ef4444'
+            }]} />
+            <Text style={[styles.statusText, {
+              color: connectionStatus === 'ONLINE' ? '#166534' :
+                connectionStatus === 'WAITING' ? '#b45309' : '#991b1b'
+            }]}>
+              {connectionStatus === 'ONLINE' ? 'ONLINE' :
+                connectionStatus === 'WAITING' ? 'WAITING' : 'OFFLINE'}
             </Text>
           </View>
-          {!isConnected && lastUpdateTxt && <Text style={styles.lastUpdateText}>{lastUpdateTxt}</Text>}
+          {connectionStatus === 'OFFLINE' && lastUpdateTxt && <Text style={styles.lastUpdateText}>{lastUpdateTxt}</Text>}
         </View>
       </View>
 
