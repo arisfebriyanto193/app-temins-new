@@ -18,6 +18,7 @@ import {
   View,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -136,8 +137,8 @@ export default function DashboardScreen() {
   const [sensorValues, setSensorValues] = useState<Record<string, number>>({});
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  const [rain1h, setRain1h] = useState("0.0");
-  const [rainYest, setRainYest] = useState("0.0");
+  const [rain1h, setRain1h] = useState("-");
+  const [rainYest, setRainYest] = useState("-");
 
   // Grafik states    
   const [selectedSensor, setSelectedSensor] = useState<HistorySensor | null>(null);
@@ -228,8 +229,8 @@ export default function DashboardScreen() {
   }, []);
 
   // --- Smooth Wind Direction Animation ---
-  const getVal = useCallback((topic: string) => {
-    return sensorValues[topic] ?? 0;
+  const getVal = useCallback((topic: string): number | undefined => {
+    return sensorValues[topic];
   }, [sensorValues]);
 
   // Cari sensor arah angin untuk animasi
@@ -241,21 +242,26 @@ export default function DashboardScreen() {
   useEffect(() => {
     if (windDirSensor) {
       const currentVal = lastWindDirValue.current;
-      const targetVal = getVal(windDirSensor.topic);
+      const rawVal = getVal(windDirSensor.topic);
 
-      // Calculate shortest path
-      let delta = (targetVal - currentVal + 540) % 360 - 180;
+      // Only animate if we have a valid value
+      if (rawVal !== undefined) {
+        const targetVal = rawVal;
 
-      const newVal = currentVal + delta;
+        // Calculate shortest path
+        let delta = (targetVal - currentVal + 540) % 360 - 180;
 
-      Animated.timing(animatedWindDir, {
-        toValue: newVal,
-        duration: 1200,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }).start();
+        const newVal = currentVal + delta;
 
-      lastWindDirValue.current = newVal;
+        Animated.timing(animatedWindDir, {
+          toValue: newVal,
+          duration: 1200,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }).start();
+
+        lastWindDirValue.current = newVal;
+      }
     }
   }, [sensorValues, windDirSensor]);
 
@@ -474,12 +480,12 @@ export default function DashboardScreen() {
           });
           let diff = valCurrent - valPrev;
           setRain1h((diff < 0 ? 0 : diff).toFixed(1));
-        } else setRain1h('0.0');
+        } else setRain1h('-');
 
         if (jsonYest?.status && jsonYest.data?.length > 0) setRainYest(parseFloat(jsonYest.data[0].value).toFixed(1));
-        else setRainYest('0.0');
+        else setRainYest('-');
       } catch (error) {
-        setRain1h('0.0'); setRainYest('0.0');
+        setRain1h('-'); setRainYest('-');
       }
     };
     fetchRain();
@@ -539,12 +545,14 @@ export default function DashboardScreen() {
 
   const selectedSensorLabel = selectedSensor ? selectedSensor.label : 'Pilih Sensor';
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: 10 }]}>
         <View style={styles.headerLeft}>
           <Ionicons name="planet-outline" size={24} color="#06b6d4" />
           <View style={styles.headerTextContainer}>
@@ -582,7 +590,9 @@ export default function DashboardScreen() {
                 <Ionicons name="thermometer" size={28} color="#06b6d4" />
                 <Text style={styles.tempLabel}>Suhu Udara</Text>
                 <View style={styles.tempValueContainer}>
-                  <Text style={styles.tempValue}>{isInitialLoad ? '--.-' : getVal(mainTemp.topic).toFixed(1)}</Text>
+                  <Text style={styles.tempValue}>
+                    {isInitialLoad || getVal(mainTemp.topic) === undefined ? '-' : getVal(mainTemp.topic)!.toFixed(1)}
+                  </Text>
                   <Text style={styles.tempUnit}>{mainTemp.unit}</Text>
                 </View>
               </View>
@@ -592,7 +602,9 @@ export default function DashboardScreen() {
                 <Ionicons name="water" size={28} color="#06b6d4" />
                 <Text style={styles.tempLabel}>Kelembapan</Text>
                 <View style={styles.tempValueContainer}>
-                  <Text style={styles.tempValue}>{isInitialLoad ? '--.-' : getVal(humidity.topic).toFixed(1)}</Text>
+                  <Text style={styles.tempValue}>
+                    {isInitialLoad || getVal(humidity.topic) === undefined ? '-' : getVal(humidity.topic)!.toFixed(1)}
+                  </Text>
                   <Text style={styles.tempUnit}>{humidity.unit}</Text>
                 </View>
               </View>
@@ -615,13 +627,15 @@ export default function DashboardScreen() {
                     <Ionicons name="navigate" size={42} color="#06b6d4" />
                   </Animated.View>
                 </View>
-                <Text style={styles.compassDegree}>{isInitialLoad ? '---' : getVal(windDir.topic)}°</Text>
+                <Text style={styles.compassDegree}>
+                  {isInitialLoad || getVal(windDir.topic) === undefined ? '-' : getVal(windDir.topic)}°
+                </Text>
               </View>
             </View>
             <View style={styles.windSpeedSection}>
               <View style={styles.speedContainer}>
                 <Text style={styles.valueNumberangin}>
-                  {isInitialLoad ? '--.-' : getVal(windSpd.topic)}
+                  {isInitialLoad || getVal(windSpd.topic) === undefined ? '-' : getVal(windSpd.topic)}
                   <Text style={styles.valueUnit}> {windSpd.unit}</Text>
                 </Text>
               </View>
@@ -637,12 +651,15 @@ export default function DashboardScreen() {
                 <Text style={styles.cardTitle}>{s.label}</Text>
                 <Ionicons name="rainy" size={18} color="#06b6d4" />
               </View>
-              <Text style={styles.valueNumber}>{isInitialLoad ? '--.-' : getVal(s.topic).toFixed(1)}<Text style={styles.valueUnit}> {s.unit}</Text></Text>
+              <Text style={styles.valueNumber}>
+                {isInitialLoad || getVal(s.topic) === undefined ? '-' : getVal(s.topic)!.toFixed(1)}
+                <Text style={styles.valueUnit}> {s.unit}</Text>
+              </Text>
             </View>
           ))}
           <View style={[styles.card, styles.halfCard, { marginLeft: 8 }]}>
             <Text style={styles.cardTitle}>Hujan Kemarin</Text>
-            <Text style={styles.valueNumber}>{isInitialLoad ? '--.-' : rainYest}<Text style={styles.valueUnit}> mm</Text></Text>
+            <Text style={styles.valueNumber}>{isInitialLoad ? '-' : rainYest}<Text style={styles.valueUnit}> mm</Text></Text>
           </View>
         </View>
 
@@ -654,7 +671,10 @@ export default function DashboardScreen() {
                 <Text style={styles.cardTitle}>Radiasi Matahari</Text>
                 <Ionicons name="sunny" size={18} color="#f59e0b" />
               </View>
-              <Text style={styles.valueNumber}>{isInitialLoad ? '--.-' : getVal(solar.topic).toFixed(0)}<Text style={styles.valueUnit}> {solar.unit}</Text></Text>
+              <Text style={styles.valueNumber}>
+                {isInitialLoad || getVal(solar.topic) === undefined ? '-' : getVal(solar.topic)!.toFixed(0)}
+                <Text style={styles.valueUnit}> {solar.unit}</Text>
+              </Text>
             </View>
           )}
           {pressure && (
@@ -663,7 +683,10 @@ export default function DashboardScreen() {
                 <Text style={styles.cardTitle}>Tekanan Udara</Text>
                 <Ionicons name="speedometer" size={18} color="#06b6d4" />
               </View>
-              <Text style={styles.valueNumber}>{isInitialLoad ? '--.-' : getVal(pressure.topic).toFixed(1)}<Text style={styles.valueUnit}> {pressure.unit}</Text></Text>
+              <Text style={styles.valueNumber}>
+                {isInitialLoad || getVal(pressure.topic) === undefined ? '-' : getVal(pressure.topic)!.toFixed(1)}
+                <Text style={styles.valueUnit}> {pressure.unit}</Text>
+              </Text>
             </View>
           )}
         </View>
@@ -674,34 +697,38 @@ export default function DashboardScreen() {
             <Text style={styles.cardTitle}>Hujan (1 Jam Terakhir)</Text>
             <Ionicons name="cloud-download-outline" size={20} color="#06b6d4" />
           </View>
-          <Text style={styles.valueNumber}>{isInitialLoad ? '--.-' : rain1h}<Text style={styles.valueUnit}> mm</Text></Text>
+          <Text style={styles.valueNumber}>{isInitialLoad ? '-' : rain1h}<Text style={styles.valueUnit}> mm</Text></Text>
         </View>
 
         {/* Card: Battery with Presentation Logic */}
-        {battery && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Status Baterai</Text>
-            <View style={styles.batteryDisplayRow}>
-              <View style={styles.batteryContainer}>
-                <View style={styles.batteryBody}>
-                  <View
-                    style={[
-                      styles.batteryLevel,
-                      {
-                        width: `${getBatteryPercent(getVal(battery.topic))}%`,
-                        backgroundColor: getVal(battery.topic) < 11.5 ? '#ef4444' : '#22c55e'
-                      }
-                    ]}
-                  />
+        {
+          battery && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Status Baterai</Text>
+              <View style={styles.batteryDisplayRow}>
+                <View style={styles.batteryContainer}>
+                  <View style={styles.batteryBody}>
+                    <View
+                      style={[
+                        styles.batteryLevel,
+                        {
+                          width: `${isInitialLoad || getVal(battery.topic) === undefined ? 0 : getBatteryPercent(getVal(battery.topic)!)}%`,
+                          backgroundColor: (getVal(battery.topic) ?? 0) < 11.5 ? '#ef4444' : '#22c55e'
+                        }
+                      ]}
+                    />
+                  </View>
+                  <View style={styles.batteryCap} />
                 </View>
-                <View style={styles.batteryCap} />
+                <Text style={styles.batteryTextInfo}>
+                  {isInitialLoad || getVal(battery.topic) === undefined
+                    ? '-'
+                    : `${getBatteryPercent(getVal(battery.topic)!).toFixed(0)}% (${getVal(battery.topic)!.toFixed(1)} V)`}
+                </Text>
               </View>
-              <Text style={styles.batteryTextInfo}>
-                {getBatteryPercent(getVal(battery.topic)).toFixed(0)}% ({getVal(battery.topic).toFixed(1)} V)
-              </Text>
             </View>
-          </View>
-        )}
+          )
+        }
 
         {/* Chart Section */}
         <View style={styles.card}>
@@ -745,10 +772,10 @@ export default function DashboardScreen() {
         </View>
 
         <View style={{ height: 60 }} />
-      </ScrollView>
+      </ScrollView >
 
       {/* Sensor Modal */}
-      <Modal visible={showSensorModal} transparent animationType="slide">
+      < Modal visible={showSensorModal} transparent animationType="slide" >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Pilih Sensor</Text>
@@ -762,10 +789,10 @@ export default function DashboardScreen() {
             <TouchableOpacity style={styles.modalCloseButton} onPress={() => setShowSensorModal(false)}><Text style={styles.modalCloseButtonText}>Tutup</Text></TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </Modal >
 
       {/* Interval Modal */}
-      <Modal visible={showIntervalModal} transparent animationType="slide">
+      < Modal visible={showIntervalModal} transparent animationType="slide" >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Pilih Interval</Text>
@@ -777,8 +804,8 @@ export default function DashboardScreen() {
             <TouchableOpacity style={styles.modalCloseButton} onPress={() => setShowIntervalModal(false)}><Text style={styles.modalCloseButtonText}>Tutup</Text></TouchableOpacity>
           </View>
         </View>
-      </Modal>
-    </View>
+      </Modal >
+    </View >
   );
 }
 
@@ -786,7 +813,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', padding: 16,
-    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingTop: 40
+    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0'
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerTextContainer: {},

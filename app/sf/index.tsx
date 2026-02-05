@@ -7,7 +7,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Dimensions,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -328,9 +327,11 @@ export default function SmartFarmDashboard() {
     fillShadowGradientOpacity: 0.2,
   };
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
       {/* Initial Loading Overlay */}
       {isInitialLoad && (
@@ -341,7 +342,7 @@ export default function SmartFarmDashboard() {
       )}
 
       {/* HEADER */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top }]}>
         <View>
           <Text style={styles.headerTitle}>Smart Farm</Text>
           <Text style={styles.headerSubtitle}>
@@ -656,7 +657,7 @@ export default function SmartFarmDashboard() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -714,7 +715,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',

@@ -39,7 +39,6 @@ import {
   Modal,
   Platform,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -47,7 +46,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -655,14 +654,16 @@ export default function AdminDashboard() {
     );
   };
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
       {/* Header */}
-      <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
+      <Animated.View style={[styles.header, { opacity: fadeAnim, paddingTop: insets.top + (styles.header.paddingTop || 20) }]}>
         <View style={styles.headerLeft}>
-        <Text style={styles.headerTitle}></Text>
+          <Text style={styles.headerTitle}></Text>
           <Text style={styles.headerTitle}>Admin Panel</Text>
           <Text style={styles.headerSubtitle}>IoT Device Management System</Text>
         </View>
@@ -1581,7 +1582,7 @@ export default function AdminDashboard() {
         </View>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 }
 

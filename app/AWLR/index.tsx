@@ -22,7 +22,6 @@ import {
   AppState,
   Dimensions,
   Modal,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -31,6 +30,7 @@ import {
   View
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -528,13 +528,15 @@ export default function AWLRDashboard() {
     );
   }
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor="#f8fafc" barStyle="dark-content" />
+    <View style={styles.container}>
+      <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent />
 
       {/* Header */}
 
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top }]}>
 
 
         <View style={styles.headerInfo}>
@@ -845,7 +847,7 @@ export default function AWLRDashboard() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
