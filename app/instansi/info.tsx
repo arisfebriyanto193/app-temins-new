@@ -324,7 +324,7 @@ const style = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { padding: 20, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#e2e8f0', flexDirection: 'row', alignItems: 'center' },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#0f172a' },
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#0f172a', marginTop: 16 },
   headerSub: { fontSize: 13, color: '#64748b', marginTop: 2 },
   logoutBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center' },
   scroll: { flex: 1 },
