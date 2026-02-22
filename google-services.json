@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "308661951497",
+    "project_id": "temins-app",
+    "storage_bucket": "temins-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:308661951497:android:3863bb8ad416e95daeacd8",
+        "android_client_info": {
+          "package_name": "com.arisfebriyanto76.teminsapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBaeIiLwJ96Z9U8TEFEv8vJBaGNB2yvdBc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

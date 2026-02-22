@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
+import * as Device from 'expo-device';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,19 +19,39 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import { isTokenExpired } from './utils/auth';
 
-// Placeholder logo - ganti dengan path logo Anda
+// ─────────────────────────────────────────────────────────────────────────────
+// Assets
+// ─────────────────────────────────────────────────────────────────────────────
+
 const LOGO = require('../assets/images/logo.png');
 
-//const LOGO = 'a';
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface LoginResult {
+  jwt: string;
+  userData: Record<string, unknown>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Component
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+  // Push notification state — isReady becomes true once token is resolved
+  const { pushTokenString, isReady: pushReady, deviceId } = usePushNotifications();
+
+  // Form state
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -38,20 +59,32 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [formErrors, setFormErrors] = useState({ username: '', password: '' });
+  const [loginType, setLoginType] = useState<'user' | 'instansi'>('user');
 
-  // Animasi values
+  /**
+   * After a successful login we store the JWT + user data here.
+   * A separate useEffect watches this + pushReady to send the push token
+   * without any race condition.
+   */
+  const [loginResult, setLoginResult] = useState<LoginResult | null>(null);
+
+  // Track whether we already sent the push token for this session
+  const pushTokenSent = useRef(false);
+
+  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const logoScale = useRef(new Animated.Value(1)).current;
 
-  // API URL
   const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
-  // Cek token saat pertama kali buka aplikasi
+  // ───────────────────────────────────────────────────────────────────────
+  // 1. On mount: check existing session + run entrance animations
+  // ───────────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     checkExistingToken();
 
-    // Start animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -68,124 +101,192 @@ export default function LoginScreen() {
     ]).start();
   }, []);
 
-  // Keyboard listener
-  useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => {
-        setKeyboardVisible(true);
-        Animated.timing(logoScale, {
-          toValue: 0.8,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      }
-    );
+  // ───────────────────────────────────────────────────────────────────────
+  // 2. Keyboard listeners
+  // ───────────────────────────────────────────────────────────────────────
 
-    const keyboardDidHideListener = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardVisible(false);
-        Animated.timing(logoScale, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      }
-    );
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, () => {
+      setKeyboardVisible(true);
+      Animated.timing(logoScale, { toValue: 0.8, duration: 300, useNativeDriver: true }).start();
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardVisible(false);
+      Animated.timing(logoScale, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+    });
 
     return () => {
-      keyboardDidShowListener.remove();
-      keyboardDidHideListener.remove();
+      showSub.remove();
+      hideSub.remove();
     };
   }, []);
 
+  // ───────────────────────────────────────────────────────────────────────
+  // 3. Push token sender — decoupled, no race condition
+  //
+  //    Fires when BOTH conditions are true:
+  //      a) loginResult is set (login succeeded)
+  //      b) pushReady is true (Expo token resolved, even if null)
+  //
+  //    This handles all four timing scenarios:
+  //      • Token ready before login  → fires immediately after login
+  //      • Token ready after login   → fires when token arrives
+  //      • No token (denied/emulator) → fires immediately, sends nothing
+  //      • Already sent this session → skipped via ref guard
+  // ───────────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!loginResult || !pushReady) return;
+    if (pushTokenSent.current) return;
+
+    const sendPushToken = async () => {
+      if (!pushTokenString || !deviceId) {
+        console.log('[PushToken] No token or deviceId available — skipping submission.');
+        return;
+      }
+
+      pushTokenSent.current = true; // lock before async to prevent duplicates
+
+      try {
+        const url = `${API_URL}/api-app/notifications/save_push_token.php`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: `Bearer ${loginResult.jwt}`,
+          },
+          body: JSON.stringify({
+            expo_push_token: pushTokenString,
+            device_id: deviceId,
+            device_name: Device.deviceName ?? 'Unknown Device',
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        const result = await response.json();
+        console.log('[PushToken] Saved. HTTP:', response.status, '| Response:', result);
+      } catch (error: unknown) {
+        // Non-fatal — login flow is unaffected
+        if ((error as Error)?.name === 'AbortError') {
+          console.warn('[PushToken] Save request timed out.');
+        } else {
+          console.warn('[PushToken] Failed to save push token:', error);
+        }
+        // Reset guard so it can retry on next app launch / re-render
+        pushTokenSent.current = false;
+      }
+    };
+
+    sendPushToken();
+  }, [loginResult, pushReady]);
+
+  // ───────────────────────────────────────────────────────────────────────
+  // 4. Check existing JWT session
+  // ───────────────────────────────────────────────────────────────────────
+
   const checkExistingToken = async () => {
     try {
-      const token = await AsyncStorage.getItem('user_token');
-      const userData = await AsyncStorage.getItem('user_data');
+      const [token, userData] = await Promise.all([
+        AsyncStorage.getItem('user_token'),
+        AsyncStorage.getItem('user_data'),
+      ]);
 
       if (!token || !userData) {
         setCheckingToken(false);
         return;
       }
 
-      // 🔥 CEK EXP JWT
       if (isTokenExpired(token)) {
-        await AsyncStorage.removeItem('user_token');
-        await AsyncStorage.removeItem('user_data');
+        await Promise.all([
+          AsyncStorage.removeItem('user_token'),
+          AsyncStorage.removeItem('user_data'),
+        ]);
         setCheckingToken(false);
         return;
       }
 
-      const parsedData = JSON.parse(userData);
-      const deviceType = parsedData.device_type;
-
-      setTimeout(() => {
-        switch (deviceType) {
-          case 'AWS':
-            router.replace('/AWS');
-            break;
-          case 'AWLR':
-            router.replace('/AWLR');
-            break;
-          case 'Smart_Farm':
-            router.replace('/sf');
-            break;
-          case 'admin':
-            router.replace('/admin');
-            break;
-          default:
-            router.replace('/AWS');
-        }
-      }, 500);
+      const parsed = JSON.parse(userData);
+      navigateAfterLogin(parsed.role, parsed.device_type);
     } catch (error) {
-      console.error('Error checking token:', error);
+      console.error('[Login] Error checking existing token:', error);
       setCheckingToken(false);
     }
   };
 
+  // ───────────────────────────────────────────────────────────────────────
+  // 5. Navigation helper
+  // ───────────────────────────────────────────────────────────────────────
 
-  const validateForm = () => {
-    let isValid = true;
+  const navigateAfterLogin = useCallback(
+    (role: string, deviceType: string) => {
+      if (role === 'instansi') {
+        router.replace('/instansi');
+        return;
+      }
+      const routes: Record<string, string> = {
+        AWS: '/AWS',
+        AWLR: '/AWLR',
+        Smart_Farm: '/sf',
+        admin: '/admin',
+      };
+      router.replace((routes[deviceType] ?? '/AWS') as never);
+    },
+    [router]
+  );
+
+  // ───────────────────────────────────────────────────────────────────────
+  // 6. Form validation
+  // ───────────────────────────────────────────────────────────────────────
+
+  const validateForm = (): boolean => {
     const errors = { username: '', password: '' };
+    let valid = true;
 
     if (!username.trim()) {
       errors.username = 'Username harus diisi';
-      isValid = false;
+      valid = false;
     }
-
     if (!password.trim()) {
       errors.password = 'Password harus diisi';
-      isValid = false;
+      valid = false;
     }
 
     setFormErrors(errors);
-    return isValid;
+    return valid;
   };
 
+  // ───────────────────────────────────────────────────────────────────────
+  // 7. Login handler — ONLY handles auth, never touches push token
+  // ───────────────────────────────────────────────────────────────────────
+
   const handleLogin = async () => {
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setIsLoading(true);
-
-    // Clear previous errors
     setFormErrors({ username: '', password: '' });
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     try {
-      const apiUrl = `${API_URL}/api-app/auth/login.php`;
+      const baseUrl = `${API_URL}/api-app/auth/login.php`;
+      const finalUrl = loginType === 'instansi' ? `${baseUrl}?login=instansi` : baseUrl;
 
-      // Add timeout to fetch
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-      const response = await fetch(apiUrl, {
+      const response = await fetch(finalUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          Accept: 'application/json',
         },
         body: JSON.stringify({
           username: username.trim(),
@@ -196,87 +297,74 @@ export default function LoginScreen() {
 
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const json = await response.json();
-      console.log(json);
-      if (json.status === true) {
-        // Simpan token & user data
-        await AsyncStorage.setItem('user_token', json.token);
-        await AsyncStorage.setItem('user_data', JSON.stringify(json.data));
 
-        // Animated success feedback
-        Animated.sequence([
-          Animated.timing(fadeAnim, {
-            toValue: 0.8,
-            duration: 200,
-            useNativeDriver: true,
-          }),
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 200,
-            useNativeDriver: true,
-          }),
-        ]).start();
-
-        // Navigate based on device type
-        const deviceType = json.data.device_type;
-        const routes: { [key: string]: string } = {
-          'AWS': '/AWS',
-          'AWLR': '/AWLR',
-          'Smart_Farm': '/sf',
-          'admin': '/admin'
-        };
-
-        setTimeout(() => {
-          router.replace(routes[deviceType] || '/AWS');
-        }, 300);
-
-      } else {
-        Alert.alert(
-          'Login Gagal',
-          json.message || 'Username atau password salah',
-          [{ text: 'OK' }]
-        );
+      if (json.status !== true) {
+        Alert.alert('Login Gagal', json.message ?? 'Username atau password salah', [{ text: 'OK' }]);
+        return;
       }
-    } catch (error) {
-      console.error('Login error:', error);
 
-      if (error.name === 'AbortError') {
-        Alert.alert(
-          'Timeout',
-          'Koneksi timeout. Periksa jaringan Anda.',
-          [{ text: 'OK' }]
-        );
+      // ── Persist session ──────────────────────────────────────────────
+      await Promise.all([
+        AsyncStorage.setItem('user_token', json.token),
+        AsyncStorage.setItem('user_data', JSON.stringify(json.data)),
+      ]);
+
+      // Instansi also needs its own session keys
+      if (loginType === 'instansi' || json.data?.role === 'instansi') {
+        await Promise.all([
+          AsyncStorage.setItem('instansi_token', json.token),
+          AsyncStorage.setItem('instansi_id', String(json.data?.user_id ?? json.data?.id ?? '')),
+          AsyncStorage.setItem('instansi_name', json.data?.name ?? json.data?.username ?? ''),
+        ]);
+      }
+
+      // ── Signal push token sender (effect #3) ─────────────────────────
+      setLoginResult({ jwt: json.token, userData: json.data });
+
+      // ── Visual feedback + navigate ────────────────────────────────────
+      Animated.sequence([
+        Animated.timing(fadeAnim, { toValue: 0.8, duration: 200, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      ]).start();
+
+      // Navigate immediately — push token sending is non-blocking
+      setTimeout(() => {
+        navigateAfterLogin(json.data?.role, json.data?.device_type);
+      }, 300);
+
+    } catch (error: unknown) {
+      clearTimeout(timeoutId);
+      if ((error as Error)?.name === 'AbortError') {
+        Alert.alert('Timeout', 'Koneksi timeout. Periksa jaringan Anda.', [{ text: 'OK' }]);
       } else {
-        Alert.alert(
-          'Koneksi Error',
-          'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.',
-          [{ text: 'OK' }]
-        );
+        Alert.alert('Koneksi Error', 'Tidak dapat terhubung ke server.', [{ text: 'OK' }]);
       }
     } finally {
       setIsLoading(false);
     }
   };
 
+  // ───────────────────────────────────────────────────────────────────────
+  // 8. Input change handlers
+  // ───────────────────────────────────────────────────────────────────────
+
   const handleUsernameChange = (text: string) => {
     setUsername(text);
-    if (formErrors.username) {
-      setFormErrors({ ...formErrors, username: '' });
-    }
+    if (formErrors.username) setFormErrors((prev) => ({ ...prev, username: '' }));
   };
 
   const handlePasswordChange = (text: string) => {
     setPassword(text);
-    if (formErrors.password) {
-      setFormErrors({ ...formErrors, password: '' });
-    }
+    if (formErrors.password) setFormErrors((prev) => ({ ...prev, password: '' }));
   };
 
-  // Tampilkan loading saat cek token
+  // ───────────────────────────────────────────────────────────────────────
+  // 9. Render – Loading screen while checking existing session
+  // ───────────────────────────────────────────────────────────────────────
+
   if (checkingToken) {
     return (
       <View style={[styles.loadingContainer, { paddingTop: insets.top }]}>
@@ -291,6 +379,10 @@ export default function LoginScreen() {
     );
   }
 
+  // ───────────────────────────────────────────────────────────────────────
+  // 10. Render – Login form
+  // ───────────────────────────────────────────────────────────────────────
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { paddingTop: insets.top }]}
@@ -304,60 +396,83 @@ export default function LoginScreen() {
       />
 
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollContainer,
-          { paddingBottom: insets.bottom + 20 }
-        ]}
+        contentContainerStyle={[styles.scrollContainer, { paddingBottom: insets.bottom + 20 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Logo */}
         <Animated.View
-          style={[
-            styles.logoContainer,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            }
-          ]}
+          style={[styles.logoContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
         >
           <Animated.Image
             source={LOGO}
-            style={[
-              styles.logo,
-              { transform: [{ scale: logoScale }] }
-            ]}
+            style={[styles.logo, { transform: [{ scale: logoScale }] }]}
             resizeMode="contain"
           />
-
         </Animated.View>
 
+        {/* Card */}
         <Animated.View
-          style={[
-            styles.card,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            }
-          ]}
+          style={[styles.card, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
         >
           <BlurView intensity={80} tint="light" style={styles.cardBlur}>
             <View style={styles.cardContent}>
-              <View style={styles.titleContainer}>
-                <Ionicons name="log-in-outline" size={28} color="#06b6d4" />
-                <Text style={styles.title}>Masuk ke Akun</Text>
+
+              {/* Login Type Toggle */}
+              <View style={styles.toggleContainer}>
+                <TouchableOpacity
+                  style={[styles.toggleBtn, loginType === 'user' && styles.toggleBtnActive]}
+                  onPress={() => setLoginType('user')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={loginType === 'user' ? 'person' : 'person-outline'}
+                    size={16}
+                    color={loginType === 'user' ? 'white' : '#64748b'}
+                  />
+                  <Text style={[styles.toggleText, loginType === 'user' && styles.toggleTextActive]}>
+                    User Biasa
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.toggleBtn, loginType === 'instansi' && styles.toggleBtnInstansi]}
+                  onPress={() => setLoginType('instansi')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={loginType === 'instansi' ? 'business' : 'business-outline'}
+                    size={16}
+                    color={loginType === 'instansi' ? 'white' : '#64748b'}
+                  />
+                  <Text style={[styles.toggleText, loginType === 'instansi' && styles.toggleTextActive]}>
+                    Instansi
+                  </Text>
+                </TouchableOpacity>
               </View>
 
-              {/* Username Input */}
+              {/* Title */}
+              <View style={styles.titleContainer}>
+                <Ionicons
+                  name={loginType === 'instansi' ? 'business-outline' : 'log-in-outline'}
+                  size={28}
+                  color={loginType === 'instansi' ? '#3b82f6' : '#06b6d4'}
+                />
+                <Text style={styles.title}>
+                  {loginType === 'instansi' ? 'Login Instansi' : 'Masuk ke Akun'}
+                </Text>
+              </View>
+
+              {/* Username */}
               <View style={styles.inputContainer}>
                 <View style={styles.labelContainer}>
                   <Ionicons name="person-outline" size={16} color="#64748b" />
-                  <Text style={styles.label}>Username</Text>
+                  <Text style={styles.label}>
+                    {loginType === 'instansi' ? 'Username Instansi' : 'Username'}
+                  </Text>
                 </View>
                 <TextInput
-                  style={[
-                    styles.input,
-                    formErrors.username && styles.inputError
-                  ]}
+                  style={[styles.input, formErrors.username && styles.inputError]}
                   placeholder="Masukkan username Anda"
                   placeholderTextColor="#94a3b8"
                   value={username}
@@ -366,25 +481,19 @@ export default function LoginScreen() {
                   autoCorrect={false}
                   editable={!isLoading}
                   returnKeyType="next"
-                  onSubmitEditing={() => {
-                    // Focus next input
-                  }}
                 />
                 {formErrors.username ? (
                   <Text style={styles.errorText}>{formErrors.username}</Text>
                 ) : null}
               </View>
 
-              {/* Password Input */}
+              {/* Password */}
               <View style={styles.inputContainer}>
                 <View style={styles.labelContainer}>
                   <Ionicons name="lock-closed-outline" size={16} color="#64748b" />
                   <Text style={styles.label}>Password</Text>
                 </View>
-                <View style={[
-                  styles.passwordWrapper,
-                  formErrors.password && styles.inputError
-                ]}>
+                <View style={[styles.passwordWrapper, formErrors.password && styles.inputError]}>
                   <TextInput
                     style={styles.passwordInput}
                     placeholder="Masukkan password Anda"
@@ -397,14 +506,14 @@ export default function LoginScreen() {
                     onSubmitEditing={handleLogin}
                   />
                   <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
+                    onPress={() => setShowPassword((v) => !v)}
                     style={styles.eyeButton}
                     disabled={isLoading}
                   >
                     <Ionicons
                       name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                       size={22}
-                      color={isLoading ? "#94a3b8" : "#64748b"}
+                      color={isLoading ? '#94a3b8' : '#64748b'}
                     />
                   </TouchableOpacity>
                 </View>
@@ -417,8 +526,9 @@ export default function LoginScreen() {
               <TouchableOpacity
                 style={[
                   styles.button,
+                  loginType === 'instansi' && styles.buttonInstansi,
                   isLoading && styles.buttonDisabled,
-                  !keyboardVisible && styles.buttonShadow
+                  !keyboardVisible && styles.buttonShadow,
                 ]}
                 onPress={handleLogin}
                 disabled={isLoading}
@@ -429,8 +539,14 @@ export default function LoginScreen() {
                     <ActivityIndicator color="#ffffff" size="small" />
                   ) : (
                     <>
-                      <Ionicons name="arrow-forward-outline" size={20} color="#ffffff" />
-                      <Text style={styles.buttonText}>MASUK</Text>
+                      <Ionicons
+                        name={loginType === 'instansi' ? 'business-outline' : 'arrow-forward-outline'}
+                        size={20}
+                        color="#ffffff"
+                      />
+                      <Text style={styles.buttonText}>
+                        {loginType === 'instansi' ? 'MASUK INSTANSI' : 'MASUK'}
+                      </Text>
                     </>
                   )}
                 </View>
@@ -440,17 +556,18 @@ export default function LoginScreen() {
               <View style={styles.footer}>
                 <TouchableOpacity
                   style={styles.footerLink}
-                  onPress={() => Alert.alert(
-                    'Lupa Password',
-                    'Silakan hubungi administrator sistem untuk reset password.'
-                  )}
+                  onPress={() =>
+                    Alert.alert(
+                      'Lupa Password',
+                      'Silakan hubungi administrator sistem untuk reset password.'
+                    )
+                  }
                 >
                   <Ionicons name="help-circle-outline" size={16} color="#64748b" />
                   <Text style={styles.footerLinkText}>Lupa password?</Text>
                 </TouchableOpacity>
-
-
               </View>
+
             </View>
           </BlurView>
         </Animated.View>
@@ -458,6 +575,10 @@ export default function LoginScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────────────────────────────────────
 
 const { width, height } = Dimensions.get('window');
 
@@ -498,20 +619,6 @@ const styles = StyleSheet.create({
     width: width * 0.35,
     height: width * 0.35,
     marginBottom: 16,
-  },
-  appTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 8,
-    letterSpacing: 1,
-  },
-  appSubtitle: {
-    fontSize: 14,
-    color: '#64748b',
-    textAlign: 'center',
-    lineHeight: 20,
-    maxWidth: width * 0.8,
   },
   card: {
     borderRadius: 24,
@@ -610,6 +717,51 @@ const styles = StyleSheet.create({
     backgroundColor: '#94a3b8',
     opacity: 0.7,
   },
+  buttonInstansi: {
+    backgroundColor: '#3b82f6',
+    shadowColor: '#3b82f6',
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+    gap: 4,
+  },
+  toggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 9,
+    gap: 6,
+  },
+  toggleBtnActive: {
+    backgroundColor: '#06b6d4',
+    shadowColor: '#06b6d4',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  toggleBtnInstansi: {
+    backgroundColor: '#3b82f6',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  toggleText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  toggleTextActive: {
+    color: 'white',
+  },
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -638,17 +790,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748b',
     marginLeft: 6,
-  },
-  versionContainer: {
-    alignItems: 'center',
-  },
-  versionText: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginBottom: 4,
-  },
-  copyrightText: {
-    fontSize: 11,
-    color: '#cbd5e1',
   },
 });

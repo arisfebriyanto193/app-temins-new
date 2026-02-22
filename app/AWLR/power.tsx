@@ -195,11 +195,13 @@ export default function PowerPage() {
   // === 4. HELPER CALCULATIONS ===
   const getVal = (topic) => sensorValues[topic] ?? 0;
   const sensorVolt = config?.sensors.find(s => s.type_id === 'volt');
-  const sensorAmp = config?.sensors.find(s => s.type_id === 'amp');
   const currentVolt = sensorVolt ? getVal(sensorVolt.topic) : 0;
-  const currentAmp = sensorAmp ? getVal(sensorAmp.topic) : 0;
-  
-  const chargingWatts = (currentVolt * currentAmp).toFixed(1);
+
+  // Ambil nilai Charging dari topic data/ac (dalam Ampere)
+  const acTopic = Object.keys(sensorValues).find(t => t.includes('data/ac'));
+  let chargingAmp = acTopic ? getVal(acTopic) : 0;
+  chargingAmp = chargingAmp / 1000;
+
   let battPct = ((currentVolt - 10.8) / (14.7 - 10.8)) * 100;
   battPct = Math.max(0, Math.min(100, battPct));
 
@@ -239,8 +241,8 @@ export default function PowerPage() {
             {/* Charging Power */}
             <View style={styles.mpptCircle}>
               <Text style={styles.mpptLabel}>Charging</Text>
-              <Text style={styles.mpptVal}>{chargingWatts}W</Text>
-              <Text style={styles.mpptSub}>{currentVolt.toFixed(1)}V | {currentAmp.toFixed(2)}A</Text>
+              <Text style={styles.mpptVal}>{chargingAmp.toFixed(2)}A</Text>
+              <Text style={styles.mpptSub}>{currentVolt.toFixed(1)}V</Text>
             </View>
 
             {/* Battery Info */}

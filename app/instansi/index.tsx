@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import mqtt from 'mqtt';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -122,7 +122,7 @@ const getIconForSensor = (type: string) => {
   }
 };
 
-export default function DashboardScreen() {
+export default function InstansiDashboard() {
   const router = useRouter();
 
   // --- States ---
@@ -133,6 +133,7 @@ export default function DashboardScreen() {
   const [lastDataTimestamp, setLastDataTimestamp] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [config, setConfig] = useState<ConfigData>(DEFAULT_CONFIG);
   const [historyConfig, setHistoryConfig] = useState<HistoryConfig>(DEFAULT_HISTORY_CONFIG);
   const [sensorValues, setSensorValues] = useState<Record<string, number>>({});
@@ -170,8 +171,8 @@ export default function DashboardScreen() {
   const apiToken = process.env.EXPO_PUBLIC_API_TOKEN;
 
   // --- Initial Config Load ---
-  const fetchConfig = async () => {
-    const token = await AsyncStorage.getItem('user_token');
+  const fetchConfig = async (devId: string) => {
+    const token = await AsyncStorage.getItem('instansi_token');
     if (!token) {
       router.replace('../');
       return;
@@ -189,19 +190,20 @@ export default function DashboardScreen() {
         console.error("Timeout err", err);
       }
 
-      const url = `${apiUrl}/api-app/user/aws/ds.php`;
+      const url = `${apiUrl}/api-app/instansi/aws/ds.php?device_id=${devId}`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
 
-      if (data.status) {
-        const processedSensors = data.sensors.map((s: any) => ({
+      if (data.status && data.selected_device_details) {
+        const details = data.selected_device_details;
+        const processedSensors = details.sensors.map((s: any) => ({
           ...s,
           type: detectType(s.label)
         }));
 
-        const newConfig = { ...data, sensors: processedSensors };
+        const newConfig = { ...details, sensors: processedSensors };
         setConfig(newConfig);
 
         const initials: Record<string, number> = {};
@@ -217,32 +219,60 @@ export default function DashboardScreen() {
     }
   };
 
-  const fetchHistoryConfig = async () => {
-    const token = await AsyncStorage.getItem('user_token');
+  const fetchHistoryConfig = async (devId: string) => {
+    // History endpoint specifically for instansi is not clear, but we will construct a mock history config based on charts
+    const token = await AsyncStorage.getItem('instansi_token');
     if (!token) return;
 
     try {
-      const url = `${apiUrl}/api-app/user/aws/history.php`;
+      const url = `${apiUrl}/api-app/instansi/aws/ds.php?device_id=${devId}`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-
-      if (data.status) {
-        setHistoryConfig(data);
-        if (data.sensors && data.sensors.length > 0 && !selectedSensor) {
-          setSelectedSensor(data.sensors[0]);
-        }
+      
+      if (data.status && data.selected_device_details) {
+         const details = data.selected_device_details;
+         const historySensors = details.charts.map((c: any) => ({
+             code: c.val,
+             label: c.label,
+             unit: '',
+             icon: '',
+             color: '#06b6d4'
+         }));
+         setHistoryConfig({
+             ...DEFAULT_HISTORY_CONFIG,
+             status: true,
+             device_id: devId,
+             sensors: historySensors
+         });
+         
+         if (historySensors.length > 0 && !selectedSensor) {
+            setSelectedSensor(historySensors[0]);
+         }
       }
     } catch (err) {
-      console.error("Failed to load history config", err);
+      console.error("Failed to map history config for instansi", err);
     }
   };
 
-  useEffect(() => {
-    fetchConfig();
-    fetchHistoryConfig();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      const init = async () => {
+        setIsInitialLoad(true);
+        const devId = await AsyncStorage.getItem('selected_device_id');
+        if (devId) {
+          setSelectedDeviceId(devId);
+          await fetchConfig(devId);
+          await fetchHistoryConfig(devId);
+        } else {
+          setIsInitialLoad(false);
+        }
+      };
+
+      init();
+    }, [])
+  );
 
   // --- Smooth Wind Direction Animation ---
   const getVal = useCallback((topic: string): number | undefined => {
@@ -401,7 +431,7 @@ export default function DashboardScreen() {
   useEffect(() => {
     if (!config || !config.device.id) return;
     const brokerURL = "wss://karsacerdasinovatif.web.id:8081";
-    const clientId = "aws_rn_" + Math.random().toString(16).substring(2, 10);
+    const clientId = "aws_inst_rn_" + Math.random().toString(16).substring(2, 10);
     const client = mqtt.connect(brokerURL, { clientId, clean: true, reconnectPeriod: 5000 });
 
     // Reset data flag and set status to WAITING
@@ -586,11 +616,15 @@ export default function DashboardScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    Promise.all([fetchConfig(), fetchHistoryConfig()]).then(() => {
-      if (selectedSensor) fetchChartData();
+    if (selectedDeviceId) {
+      Promise.all([fetchConfig(selectedDeviceId), fetchHistoryConfig(selectedDeviceId)]).then(() => {
+        if (selectedSensor) fetchChartData();
+        setRefreshing(false);
+      });
+    } else {
       setRefreshing(false);
-    });
-  }, [fetchChartData, selectedSensor]);
+    }
+  }, [fetchChartData, selectedSensor, selectedDeviceId]);
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
@@ -639,6 +673,18 @@ export default function DashboardScreen() {
   const selectedSensorLabel = selectedSensor ? selectedSensor.label : 'Pilih Sensor';
 
   const insets = useSafeAreaInsets();
+
+  if (!selectedDeviceId) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <Ionicons name="alert-circle-outline" size={64} color="#94a3b8" />
+        <Text style={styles.emptyText}>Belum ada perangkat dipilih</Text>
+        <TouchableOpacity style={styles.selectBtn} onPress={() => router.push('/instansi/info')}>
+          <Text style={styles.selectBtnText}>Pilih Perangkat</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -995,4 +1041,8 @@ const styles = StyleSheet.create({
   compassContainer: { alignItems: 'center' },
   speedContainer: { alignItems: 'center' },
   hiddenScrollView: { display: 'none' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+  emptyText: { fontSize: 14, color: '#94a3b8', marginTop: 10 },
+  selectBtn: { marginTop: 20, backgroundColor: '#3b82f6', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
+  selectBtnText: { color: 'white', fontWeight: 'bold' },
 });

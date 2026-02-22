@@ -572,10 +572,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTitle: {
-    fontSize: 24,
+   headerTitle: {
+    fontSize: 21,
     fontWeight: 'bold',
     color: '#0f172a',
+    marginTop: 16,
   },
   headerSubtitle: {
     fontSize: 14,

@@ -14,7 +14,7 @@ import {
   View
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
-
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // Polyfill untuk MQTT di React Native
 global.Buffer = Buffer;
 

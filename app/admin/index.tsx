@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import EditDeviceModal from '@/components/admin/EditDeviceModal';
 import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
 import {
@@ -30,6 +31,7 @@ import {
   X
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   Alert,
@@ -39,6 +41,7 @@ import {
   Modal,
   Platform,
   RefreshControl,
+  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -78,6 +81,11 @@ export default function AdminDashboard() {
   const [showPassword, setShowPassword] = useState(false);
   const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
 
+  // Dashboard View: 'devices' | 'overview'
+  const [dashboardView, setDashboardView] = useState<'devices' | 'overview'>('devices');
+  const [packetLogs, setPacketLogs] = useState<any[]>([]);
+  const [packetLogLoading, setPacketLogLoading] = useState(false);
+
   // Modals & Forms
   const [modalMode, setModalMode] = useState('none'); // 'none' | 'add' | 'edit' | 'password' | 'details'
   const [selectedUser, setSelectedUser] = useState(null);
@@ -111,6 +119,16 @@ export default function AdminDashboard() {
     outputRange: ['0deg', '360deg'],
   });
 
+  // Fetch packet logs for Overview tab
+  const fetchPacketLogs = async () => {
+    setPacketLogLoading(true);
+    try {
+      const res = await axios.get(`${DATA_URL}/email/status`);
+      if (res.data.success) setPacketLogs(res.data.devices || []);
+    } catch (e) { console.error('fetchPacketLogs error', e); }
+    finally { setPacketLogLoading(false); }
+  };
+
   useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
@@ -121,6 +139,10 @@ export default function AdminDashboard() {
     fetchData();
     fetchTemplates();
   }, []);
+
+  useEffect(() => {
+    if (dashboardView === 'overview') fetchPacketLogs();
+  }, [dashboardView]);
 
   // --- Helper Functions ---
   const isDeviceOnline = (recordedAt) => {
@@ -373,7 +395,7 @@ export default function AdminDashboard() {
     setModalMode('add');
   };
 
-  const handleOpenEdit = async (user) => {
+  const handleOpenEdit = async (user: any) => {
     setSelectedUser(user);
     setLoading(true);
     try {
@@ -383,7 +405,7 @@ export default function AdminDashboard() {
       });
 
       if (res.data.status) {
-        const mappedParams = res.data.settings.map(s => ({
+        const mappedParams = res.data.settings.map((s: any) => ({
           id: s.id,
           label: s.parameter_name,
           topic: s.mqtt_topic,
@@ -394,14 +416,37 @@ export default function AdminDashboard() {
           chart_data: s.chart_data || s.data_key || ''
         }));
         setParamsList(mappedParams);
+
+        // Map SEMUA field dari response API ke formData
         setFormData({
+          // Config sensor/device
           awlr_height: res.data.awlr_height || '',
           timezone: res.data.timezone || 'WIB',
           statusAlat: res.data.statusAlat || '1',
           awlrData: res.data.awlrData || '',
           awlrStatusData: res.data.awlrStatusData || '1',
           awlrJenis: res.data.awlrJenis || 'sungai',
+          awlr_mode: res.data.awlr_mode || 'template',
+          awlr_custom_formula: res.data.awlr_custom_formula || '',
+
+          // Lokasi
+          lokasi: res.data.lokasi || '',
+          city: res.data.kota || '',
+
+          // Informasi Akun — field yang sebelumnya HILANG
+          username: res.data.username || user.username || '',
+          email: res.data.email || '',
+          masa_aktif: res.data.masa_aktif || '',
+          masa_paket: res.data.masa_paket || '',
+          waktu_add: res.data.waktu_add || '',
+
+          // Kontak & Owner — field yang sebelumnya HILANG
+          owner: res.data.owner || '',
+          internet_no: res.data.internet_no || '',
+          pic_name: res.data.pic_name || '',
+          pic_contact: res.data.pic_contact || '',
         });
+
         setActiveTab('general');
         setModalMode('edit');
       }
@@ -668,6 +713,21 @@ export default function AdminDashboard() {
           <Text style={styles.headerSubtitle}>IoT Device Management System</Text>
         </View>
         <View style={styles.headerActions}>
+          {/* View switcher */}
+          <View style={overviewStyles.viewSwitcher}>
+            <TouchableOpacity
+              style={[overviewStyles.switchBtn, dashboardView === 'devices' && overviewStyles.switchBtnActive]}
+              onPress={() => setDashboardView('devices')}
+            >
+              <Text style={[overviewStyles.switchBtnText, dashboardView === 'devices' && overviewStyles.switchBtnTextActive]}>Perangkat</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[overviewStyles.switchBtn, dashboardView === 'overview' && overviewStyles.switchBtnActive]}
+              onPress={() => setDashboardView('overview')}
+            >
+              <Text style={[overviewStyles.switchBtnText, dashboardView === 'overview' && overviewStyles.switchBtnTextActive]}>Overview</Text>
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity
             onPress={refreshOnlineStatus}
             disabled={checkingStatus}
@@ -677,18 +737,77 @@ export default function AdminDashboard() {
               <RotateCw size={22} color={checkingStatus ? "#6366f1" : "#475569"} />
             </Animated.View>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.iconBtn, styles.filterIcon]}
-            onPress={() => setStatusFilter(statusFilter === 'all' ? 'online' : 'all')}
-          >
-            <Filter size={22} color="#475569" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.addBtn} onPress={handleOpenAdd}>
-            <Plus size={24} color="white" />
-          </TouchableOpacity>
+          {dashboardView === 'devices' && (
+            <TouchableOpacity style={styles.addBtn} onPress={handleOpenAdd}>
+              <Plus size={24} color="white" />
+            </TouchableOpacity>
+          )}
         </View>
       </Animated.View>
 
+      {/* === OVERVIEW VIEW === */}
+      {dashboardView === 'overview' && (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+          {/* Stats summary */}
+          <View style={overviewStyles.statsRow}>
+            {[
+              { label: 'Total', value: users.length, color: '#6366f1' },
+              { label: 'Online', value: deviceStatus.online, color: '#22c55e' },
+              { label: 'Offline', value: deviceStatus.offline, color: '#f97316' },
+              { label: 'Aktif', value: deviceStatus.aktif, color: '#3b82f6' },
+            ].map(s => (
+              <View key={s.label} style={overviewStyles.miniCard}>
+                <Text style={[overviewStyles.miniCardValue, { color: s.color }]}>{s.value}</Text>
+                <Text style={overviewStyles.miniCardLabel}>{s.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Packet Log Table */}
+          <View style={overviewStyles.tableCard}>
+            <View style={overviewStyles.tableHeader}>
+              <Text style={overviewStyles.tableTitle}>Log Masa Aktif Paket (7 Hari ke Depan)</Text>
+              {packetLogLoading && <ActivityIndicator size="small" color="#6366f1" />}
+            </View>
+            {packetLogs.length === 0 ? (
+              <View style={overviewStyles.tableEmpty}>
+                <Text style={overviewStyles.tableEmptyText}>
+                  {packetLogLoading ? 'Memuat data...' : 'Tidak ada data log paket'}
+                </Text>
+              </View>
+            ) : (
+              packetLogs.map((log: any, idx: number) => (
+                <View key={idx} style={overviewStyles.tableRow}>
+                  <View style={overviewStyles.tableRowLeft}>
+                    <Text style={overviewStyles.tableDevName}>{log.device_name}</Text>
+                    <Text style={overviewStyles.tableDevUser}>@{log.username}</Text>
+                    <Text style={overviewStyles.tableDevEmail}>{log.email}</Text>
+                  </View>
+                  <View style={overviewStyles.tableRowRight}>
+                    <View style={[
+                      overviewStyles.daysBadge,
+                      { backgroundColor: log.days_until < 7 ? '#fee2e2' : '#dcfce7' }
+                    ]}>
+                      <Text style={[
+                        overviewStyles.daysBadgeText,
+                        { color: log.days_until < 7 ? '#dc2626' : '#16a34a' }
+                      ]}>
+                        {log.days_until}h
+                      </Text>
+                    </View>
+                    <Text style={overviewStyles.masaAktif}>{log.masa_aktif}</Text>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      )}
+
+      {/* === DEVICES VIEW === */}
+      {dashboardView === 'devices' && (
+      <>
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
@@ -808,6 +927,8 @@ export default function AdminDashboard() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+      </>
+      )}
 
       {/* === MODALS === */}
 
@@ -940,14 +1061,54 @@ export default function AdminDashboard() {
                   <ChevronDown size={16} color="#6366f1" />
                 </TouchableOpacity>
 
+                {/* --- AKUN TAB fields (email, masa aktif, paket) --- */}
+                <View style={[styles.formSection, { marginTop: 8 }]}>
+                  <Text style={styles.sectionHeaderText}>Informasi Akun</Text>
+
+                  <Text style={styles.inputLabel}>Email</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.email || ''}
+                    onChangeText={(t) => setFormData({ ...formData, email: t })}
+                    placeholder="contoh@email.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+
+                  <Text style={styles.inputLabel}>Masa Aktif Kartu (SIM)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.masa_aktif || ''}
+                    onChangeText={(t) => setFormData({ ...formData, masa_aktif: t })}
+                    placeholder="YYYY-MM-DD"
+                  />
+
+                  <Text style={styles.inputLabel}>Masa Aktif Paket Internet</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.masa_paket || ''}
+                    onChangeText={(t) => setFormData({ ...formData, masa_paket: t })}
+                    placeholder="YYYY-MM-DD"
+                  />
+                </View>
+
+                {/* Owner & Lokasi */}
                 {showAdvancedConfig && (
                   <View style={styles.advancedConfig}>
-                    <Text style={styles.inputLabel}>Owner Name</Text>
+                    <Text style={styles.inputLabel}>Owner / Instansi</Text>
                     <TextInput
                       style={styles.input}
                       value={formData.owner}
                       onChangeText={(t) => setFormData({ ...formData, owner: t })}
                       placeholder="Nama pemilik/instansi"
+                    />
+
+                    <Text style={styles.inputLabel}>Lokasi</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={formData.lokasi || ''}
+                      onChangeText={(t) => setFormData({ ...formData, lokasi: t })}
+                      placeholder="Lokasi perangkat"
                     />
                   </View>
                 )}
@@ -1159,266 +1320,20 @@ export default function AdminDashboard() {
         </SafeAreaView>
       </Modal>
 
-      {/* Modal: EDIT */}
-      <Modal visible={modalMode === 'edit'} animationType="slide">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Edit Konfigurasi</Text>
-            <Text style={styles.modalSubtitle}>{selectedUser?.username}</Text>
-            <TouchableOpacity onPress={() => setModalMode('none')} style={styles.closeBtn}>
-              <X size={24} color="#64748b" />
-            </TouchableOpacity>
-          </View>
+      {/* Modal: EDIT — menggunakan komponen EditDeviceModal */}
+      <EditDeviceModal
+        visible={modalMode === 'edit'}
+        onClose={() => setModalMode('none')}
+        onSave={handleSave}
+        loading={loading}
+        selectedUser={selectedUser}
+        formData={formData}
+        setFormData={setFormData}
+        paramsList={paramsList}
+        setParamsList={setParamsList}
+        handleDeleteParam={handleDeleteParam}
+      />
 
-          <ScrollView style={styles.modalForm}>
-            {/* AWLR Configuration */}
-            {selectedUser?.device_type === 'AWLR' && (
-              <View style={styles.awlrConfig}>
-                <View style={styles.awlrHeader}>
-                  <Ruler size={24} color="#0ea5e9" />
-                  <Text style={styles.awlrTitle}>Konfigurasi AWLR</Text>
-                </View>
-                <Text style={styles.awlrSubtitle}>Pengaturan sensor ketinggian air</Text>
-
-                <Text style={styles.inputLabel}>Tinggi Sensor (cm)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.awlr_height}
-                  onChangeText={(t) => setFormData({ ...formData, awlr_height: t })}
-                  placeholder="0"
-                  keyboardType="numeric"
-                />
-                <Text style={styles.inputLabel}>Jenis AWLR</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={formData.awlrJenis}
-                    onValueChange={(v) => setFormData({ ...formData, awlrJenis: v })}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="Sungai" value="sungai" />
-                    <Picker.Item label="Sumur" value="sumur" />
-                  </Picker>
-                </View>
-
-                <Text style={styles.inputLabel}>Data Sensor AWLR</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={formData.awlrData}
-                    onValueChange={(v) => setFormData({ ...formData, awlrData: v })}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="-- Pilih Sensor --" value="" />
-                    {paramsList.map((param, idx) => (
-                      <Picker.Item
-                        key={idx}
-                        label={`${param.label} (${param.chart_data})`}
-                        value={param.chart_data}
-                      />
-                    ))}
-                  </Picker>
-                </View>
-
-                <Text style={styles.inputLabel}>Pengurangan Data</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={formData.awlrStatusData}
-                    onValueChange={(v) => setFormData({ ...formData, awlrStatusData: v })}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="Aktif" value="1" />
-                    <Picker.Item label="Tidak Aktif" value="0" />
-                  </Picker>
-                </View>
-              </View>
-            )}
-
-            {/* General Configuration */}
-            <View style={styles.formSection}>
-              <Text style={styles.sectionHeader}>Pengaturan Umum</Text>
-
-              <Text style={styles.inputLabel}>Zona Waktu</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={formData.timezone}
-                  onValueChange={(v) => setFormData({ ...formData, timezone: v })}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="WIB" value="WIB" />
-                  <Picker.Item label="WITA" value="WITA" />
-                  <Picker.Item label="WIT" value="WIT" />
-                </Picker>
-              </View>
-
-              <Text style={styles.inputLabel}>Status Alat</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={formData.statusAlat}
-                  onValueChange={(v) => setFormData({ ...formData, statusAlat: v })}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Aktif" value="1" />
-                  <Picker.Item label="Tidak Aktif" value="0" />
-                </Picker>
-              </View>
-            </View>
-
-            {/* Sensor Configuration */}
-            <View style={styles.formSection}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeader}>Daftar Sensor / Parameter</Text>
-                <TouchableOpacity
-                  style={styles.miniAddBtn}
-                  onPress={() => setParamsList([...paramsList, {
-                    label: '',
-                    topic: `temins_iot/${selectedUser?.device_unique_id || 'ID'}/data/`,
-                    unit: '',
-                    is_visible: true,
-                    is_chart: false,
-                    chart_order: 10,
-                    chart_data: ''
-                  }])}
-                >
-                  <Plus size={16} color="white" />
-                  <Text style={styles.miniAddText}>Tambah</Text>
-                </TouchableOpacity>
-              </View>
-
-              {paramsList.map((p, idx) => (
-                <View key={idx} style={styles.paramCard}>
-                  <View style={styles.paramHeader}>
-                    <Text style={styles.paramIndex}>Sensor {idx + 1}</Text>
-                    <TouchableOpacity onPress={() => handleDeleteParam(idx)}>
-                      <Trash2 size={20} color="#e11d48" />
-                    </TouchableOpacity>
-                  </View>
-
-                  <Text style={styles.inputLabel}>Nama Sensor</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={p.label}
-                    onChangeText={(t) => {
-                      let n = [...paramsList];
-                      n[idx].label = t;
-                      setParamsList(n);
-                    }}
-                    placeholder="Contoh: Temperature"
-                  />
-
-                  <Text style={styles.inputLabel}>Topic MQTT</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={p.topic}
-                    onChangeText={(t) => {
-                      let n = [...paramsList];
-                      n[idx].topic = t;
-                      setParamsList(n);
-                    }}
-                    placeholder="temins_iot/device/data/sensor"
-                  />
-
-                  <View style={styles.row}>
-                    <View style={{ flex: 1, marginRight: 10 }}>
-                      <Text style={styles.inputLabel}>Unit</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={p.unit}
-                        onChangeText={(t) => {
-                          let n = [...paramsList];
-                          n[idx].unit = t;
-                          setParamsList(n);
-                        }}
-                        placeholder="°C, %, etc"
-                      />
-                    </View>
-
-                    <View style={styles.switchContainer}>
-                      <Text style={styles.switchLabel}>Chart</Text>
-                      <Switch
-                        value={p.is_chart}
-                        onValueChange={(v) => {
-                          let n = [...paramsList];
-                          n[idx].is_chart = v;
-                          setParamsList(n);
-                        }}
-                        trackColor={{ false: '#cbd5e1', true: '#6366f1' }}
-                        thumbColor="white"
-                      />
-                    </View>
-                  </View>
-
-                  {p.is_chart && (
-                    <>
-                      <Text style={styles.inputLabel}>Chart Key (JSON Path)</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={p.chart_data}
-                        onChangeText={(t) => {
-                          let n = [...paramsList];
-                          n[idx].chart_data = t;
-                          setParamsList(n);
-                        }}
-                        placeholder="data.temperature"
-                      />
-
-                      <Text style={styles.inputLabel}>Chart Order</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={String(p.chart_order)}
-                        onChangeText={(t) => {
-                          let n = [...paramsList];
-                          n[idx].chart_order = parseInt(t) || 10;
-                          setParamsList(n);
-                        }}
-                        placeholder="Urutan grafik"
-                        keyboardType="numeric"
-                      />
-                    </>
-                  )}
-
-                  <View style={styles.switchContainer}>
-                    <Text style={styles.switchLabel}>Visible di Dashboard</Text>
-                    <Switch
-                      value={p.is_visible}
-                      onValueChange={(v) => {
-                        let n = [...paramsList];
-                        n[idx].is_visible = v;
-                        setParamsList(n);
-                      }}
-                      trackColor={{ false: '#cbd5e1', true: '#10b981' }}
-                      thumbColor="white"
-                    />
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            <View style={{ height: 50 }} />
-          </ScrollView>
-
-          <View style={styles.modalFooter}>
-            <TouchableOpacity
-              style={styles.footerBtnCancel}
-              onPress={() => setModalMode('none')}
-            >
-              <Text style={styles.footerBtnCancelText}>Batal</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.footerBtnSave}
-              onPress={handleSave}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="white" size="small" />
-              ) : (
-                <>
-                  <Save size={20} color="white" />
-                  <Text style={styles.footerBtnText}>Simpan Konfigurasi</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
 
       {/* Modal: DETAILS */}
       <Modal visible={modalMode === 'details'} animationType="slide">
@@ -2141,6 +2056,41 @@ const styles = StyleSheet.create({
     color: '#38bdf8',
     marginBottom: 16,
   },
+  awlrModeSwitcher: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 8,
+    padding: 3,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(14,165,233,0.3)',
+  },
+  awlrModeBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  awlrModeBtnActive: {
+    backgroundColor: '#0284c7',
+  },
+  awlrModeBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0ea5e9',
+  },
+  awlrModeBtnTextActive: {
+    color: 'white',
+  },
+  sectionHeaderText: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginBottom: 14,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
 
   // Form Sections
   formSection: {
@@ -2414,4 +2364,34 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'white',
   },
+});
+const overviewStyles = StyleSheet.create({
+  viewSwitcher: { flexDirection: 'row', backgroundColor: '#f1f5f9', borderRadius: 8, padding: 2, marginRight: 8 },
+  switchBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
+  switchBtnActive: { backgroundColor: 'white', elevation: 2 },
+  switchBtnText: { fontSize: 12, color: '#64748b', fontWeight: '600' },
+  switchBtnTextActive: { color: '#6366f1' },
+  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  miniCard: { flex: 1, backgroundColor: 'white', borderRadius: 12, padding: 12, alignItems: 'center' as const, borderWidth: 1, borderColor: '#e2e8f0' },
+  miniCardValue: { fontSize: 22, fontWeight: 'bold' as const },
+  miniCardLabel: { fontSize: 11, color: '#64748b', marginTop: 4 },
+  tableCard: { backgroundColor: 'white', borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' as const },
+  tableHeader: { flexDirection: 'row', justifyContent: 'space-between' as const, alignItems: 'center' as const, padding: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  tableTitle: { fontSize: 13, fontWeight: '700' as const, color: '#0f172a', flex: 1 },
+  tableEmpty: { padding: 32, alignItems: 'center' as const },
+  tableEmptyText: { fontSize: 13, color: '#94a3b8' },
+  tableRow: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', alignItems: 'center' as const },
+  tableRowLeft: { flex: 1 },
+  tableRowRight: { alignItems: 'flex-end' as const },
+  tableDevName: { fontSize: 13, fontWeight: '600' as const, color: '#1e293b' },
+  tableDevUser: { fontSize: 11, color: '#94a3b8', marginTop: 2 },
+  tableDevEmail: { fontSize: 11, color: '#64748b' },
+  daysBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginBottom: 4 },
+  daysBadgeText: { fontSize: 12, fontWeight: '700' as const },
+  masaAktif: { fontSize: 11, color: '#64748b' },
+});
+
+// Extra styles for synced form fields
+const extraStyles = StyleSheet.create({
+  dummy: {}
 });

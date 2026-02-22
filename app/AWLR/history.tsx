@@ -603,6 +603,7 @@ const styles = StyleSheet.create({
     fontSize: 22, 
     fontWeight: 'bold', 
     color: '#0f172a',
+    marginTop: 16,
     marginBottom: 4,
   },
   headerSubtitle: { 
