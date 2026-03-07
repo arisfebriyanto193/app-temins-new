@@ -543,7 +543,7 @@ export default function InstansiDashboard() {
         const date = new Date();
         date.setDate(date.getDate() - 1);
         const yStr = date.toISOString().split('T')[0];
-        const urlYest = `${apiData}/api/get-data?device_id=${config.device.id}&jenis=cha&tanggal=${yStr}&value=high`;
+        const urlYest = `${apiData}/api/get-data?device_id=${config.device.id}&jenis=ch&tanggal=${yStr}&value=high`;
         const zonaWaktu = config.device.zona_waktu || 'WIB';
         const urlRunning = `${apiData}/api/get-data?device_id=${config.device.id}&jenis=cha&periode=hari&zonawaktu=${zonaWaktu}&limit=1`;
         

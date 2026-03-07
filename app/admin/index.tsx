@@ -31,7 +31,7 @@ import {
   X
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView as RNSafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   Alert,
@@ -41,7 +41,7 @@ import {
   Modal,
   Platform,
   RefreshControl,
-  SafeAreaView,
+
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -91,6 +91,7 @@ export default function AdminDashboard() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [formData, setFormData] = useState({});
   const [paramsList, setParamsList] = useState<SensorParam[]>([]);
+  const [automationsList, setAutomationsList] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('general'); // 'general', 'location', 'advanced', 'sensors'
 
   // Animation
@@ -416,6 +417,7 @@ export default function AdminDashboard() {
           chart_data: s.chart_data || s.data_key || ''
         }));
         setParamsList(mappedParams);
+        setAutomationsList(res.data.automations || []);
 
         // Map SEMUA field dari response API ke formData
         setFormData({
@@ -491,6 +493,7 @@ export default function AdminDashboard() {
           action: 'update_config',
           user_id: selectedUser.id,
           device_unique_id: selectedUser.device_unique_id,
+          automations: automationsList,
           ...formData
         };
       } else if (modalMode === 'password') {
@@ -934,7 +937,7 @@ export default function AdminDashboard() {
 
       {/* Modal: ADD */}
       <Modal visible={modalMode === 'add'} animationType="slide">
-        <SafeAreaView style={styles.modalContainer}>
+        <RNSafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Tambah Perangkat Baru</Text>
             <TouchableOpacity onPress={() => setModalMode('none')} style={styles.closeBtn}>
@@ -1317,7 +1320,7 @@ export default function AdminDashboard() {
               )}
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+        </RNSafeAreaView>
       </Modal>
 
       {/* Modal: EDIT — menggunakan komponen EditDeviceModal */}
@@ -1332,12 +1335,14 @@ export default function AdminDashboard() {
         paramsList={paramsList}
         setParamsList={setParamsList}
         handleDeleteParam={handleDeleteParam}
+        automationsList={automationsList}
+        setAutomationsList={setAutomationsList}
       />
 
 
       {/* Modal: DETAILS */}
       <Modal visible={modalMode === 'details'} animationType="slide">
-        <SafeAreaView style={styles.modalContainer}>
+        <RNSafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
           <View style={styles.modalHeader}>
             <View>
               <Text style={styles.modalTitle}>Detail Perangkat</Text>
@@ -1446,7 +1451,7 @@ export default function AdminDashboard() {
               </>
             )}
           </ScrollView>
-        </SafeAreaView>
+        </RNSafeAreaView>
       </Modal>
 
       {/* Modal: CHANGE PASSWORD */}

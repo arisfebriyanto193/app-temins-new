@@ -55,7 +55,7 @@ export default function AccountInfoScreen() {
   
   // Ganti dengan endpoint API Anda
   const API_URL = `${process.env.EXPO_PUBLIC_API_URL}/api-app/user/info.php`;
-  const VERSION_CHECK_URL = `${process.env.EXPO_PUBLIC_API_URL}/api-app/admin/app.json`;
+  const VERSION_CHECK_URL = `${process.env.EXPO_PUBLIC_API_URL}/api-app/app/versi.php`;
 
   useEffect(() => {
     fetchAccountData();

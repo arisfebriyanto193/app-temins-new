@@ -5,7 +5,8 @@ import {
   Ruler,
   Save,
   Trash2,
-  X
+  X,
+  Zap,
 } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
@@ -32,6 +33,15 @@ interface SensorParam {
   chart_data: string;
 }
 
+interface AutomationRule {
+  id?: string;
+  parameter_name: string;
+  operator: string;
+  threshold: string | number;
+  send_email: boolean;
+  send_notification: boolean;
+}
+
 interface EditDeviceModalProps {
   visible: boolean;
   onClose: () => void;
@@ -43,9 +53,11 @@ interface EditDeviceModalProps {
   paramsList: SensorParam[];
   setParamsList: (p: SensorParam[]) => void;
   handleDeleteParam: (index: number) => void;
+  automationsList: AutomationRule[];
+  setAutomationsList: (a: AutomationRule[]) => void;
 }
 
-type TabType = 'alat' | 'akun' | 'sensor';
+type TabType = 'alat' | 'akun' | 'sensor' | 'otomasi';
 
 export default function EditDeviceModal({
   visible,
@@ -58,14 +70,43 @@ export default function EditDeviceModal({
   paramsList,
   setParamsList,
   handleDeleteParam,
+  automationsList,
+  setAutomationsList,
 }: EditDeviceModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('alat');
 
   const tabs: { key: TabType; label: string }[] = [
-    { key: 'alat', label: 'Konfigurasi Alat' },
-    { key: 'akun', label: 'Konfigurasi Akun' },
+    { key: 'alat', label: 'Alat' },
+    { key: 'akun', label: 'Akun' },
     { key: 'sensor', label: 'Sensor' },
+    { key: 'otomasi', label: 'Otomasi' },
   ];
+
+  const addAutomation = () => {
+    const defaultParam = paramsList[0]?.chart_data || paramsList[0]?.label || '';
+    setAutomationsList([
+      ...automationsList,
+      {
+        parameter_name: defaultParam,
+        operator: '>',
+        threshold: 0,
+        send_email: false,
+        send_notification: true,
+      },
+    ]);
+  };
+
+  const updateAutomation = (idx: number, key: string, value: any) => {
+    const updated = [...automationsList];
+    (updated[idx] as any)[key] = value;
+    setAutomationsList(updated);
+  };
+
+  const removeAutomation = (idx: number) => {
+    const updated = [...automationsList];
+    updated.splice(idx, 1);
+    setAutomationsList(updated);
+  };
 
   return (
     <Modal visible={visible} animationType="slide">
@@ -421,6 +462,122 @@ export default function EditDeviceModal({
             </View>
           )}
 
+          {/* ==================== TAB: OTOMASI ==================== */}
+          {activeTab === 'otomasi' && (
+            <View style={s.section}>
+              {/* Header */}
+              <View style={s.sensorHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.sectionTitle}>Konfigurasi Otomasi</Text>
+                  <Text style={s.sectionSubtitle}>Pemicu notifikasi otomatis berdasarkan nilai sensor</Text>
+                </View>
+                <TouchableOpacity style={s.addBtnGreen} onPress={addAutomation}>
+                  <Plus size={14} color="white" />
+                  <Text style={s.addBtnText}>Tambah</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Empty state */}
+              {automationsList.length === 0 && (
+                <View style={s.emptyState}>
+                  <View style={s.emptyIcon}>
+                    <Zap size={32} color="#94a3b8" />
+                  </View>
+                  <Text style={s.emptyTitle}>Belum ada aturan otomasi</Text>
+                  <Text style={s.emptyText}>Klik tombol Tambah untuk membuat aturan baru.</Text>
+                </View>
+              )}
+
+              {/* Automation rules list */}
+              {automationsList.map((auto, idx) => (
+                <View key={idx} style={s.autoCard}>
+                  {/* Card Header */}
+                  <View style={s.autoCardHeader}>
+                    <View style={s.autoCardBadge}>
+                      <Zap size={12} color="#6366f1" />
+                      <Text style={s.autoCardBadgeText}>Aturan {idx + 1}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => removeAutomation(idx)} style={s.autoDeleteBtn}>
+                      <Trash2 size={16} color="#e11d48" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Parameter selector */}
+                  <Text style={s.label}>Parameter Sensor</Text>
+                  <View style={s.picker}>
+                    <Picker
+                      selectedValue={auto.parameter_name}
+                      onValueChange={v => updateAutomation(idx, 'parameter_name', v)}
+                    >
+                      {paramsList.map((p, i) => (
+                        <Picker.Item
+                          key={i}
+                          label={`${p.label}${p.chart_data ? ` (${p.chart_data})` : ''}`}
+                          value={p.chart_data || p.label}
+                        />
+                      ))}
+                      {/* Keep existing value if not found in paramsList */}
+                      {!paramsList.find(p => (p.chart_data || p.label) === auto.parameter_name) && (
+                        <Picker.Item label={auto.parameter_name} value={auto.parameter_name} />
+                      )}
+                    </Picker>
+                  </View>
+
+                  {/* Operator & Threshold row */}
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.label}>Kondisi</Text>
+                      <View style={s.picker}>
+                        <Picker
+                          selectedValue={auto.operator}
+                          onValueChange={v => updateAutomation(idx, 'operator', v)}
+                        >
+                          <Picker.Item label="> (Lebih dari)" value=">" />
+                          <Picker.Item label="< (Kurang dari)" value="<" />
+                          <Picker.Item label="= (Sama dengan)" value="=" />
+                        </Picker>
+                      </View>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.label}>Nilai Batas</Text>
+                      <TextInput
+                        style={[s.input, { textAlign: 'center' }]}
+                        value={String(auto.threshold)}
+                        onChangeText={t => updateAutomation(idx, 'threshold', t)}
+                        keyboardType="numeric"
+                        placeholder="0"
+                      />
+                    </View>
+                  </View>
+
+                  {/* Actions */}
+                  <Text style={s.label}>Aksi Notifikasi</Text>
+                  <View style={s.actionRow}>
+                    <TouchableOpacity
+                      style={[s.actionToggle, auto.send_notification && s.actionToggleActive]}
+                      onPress={() => updateAutomation(idx, 'send_notification', !auto.send_notification)}
+                    >
+                      <View style={[s.actionDot, auto.send_notification && s.actionDotActive]} />
+                      <Text style={[s.actionToggleText, auto.send_notification && s.actionToggleTextActive]}>
+                        Push Notifikasi
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[s.actionToggle, auto.send_email && s.actionToggleEmailActive]}
+                      onPress={() => updateAutomation(idx, 'send_email', !auto.send_email)}
+                    >
+                      <View style={[s.actionDot, auto.send_email && s.actionDotEmailActive]} />
+                      <Text style={[s.actionToggleText, auto.send_email && s.actionToggleEmailText]}>
+                        Kirim Email
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
         </ScrollView>
 
         {/* Footer */}
@@ -465,7 +622,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 8,
   },
   tabItem: {
-    marginRight: 20, paddingBottom: 10,
+    marginRight: 16, paddingBottom: 10,
     borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
   tabItemActive: { borderBottomColor: '#6366f1' },
@@ -480,8 +637,11 @@ const s = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 14, fontWeight: 'bold', color: '#0f172a',
-    marginBottom: 14, paddingBottom: 10,
+    marginBottom: 4, paddingBottom: 10,
     borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+  },
+  sectionSubtitle: {
+    fontSize: 12, color: '#64748b', marginBottom: 12,
   },
 
   label: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 10 },
@@ -491,7 +651,7 @@ const s = StyleSheet.create({
     fontSize: 14, color: '#1e293b',
   },
   picker: {
-    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0',
+    color: '#000000ff', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0',
     borderRadius: 10, overflow: 'hidden',
   },
   hint: { fontSize: 11, color: '#6366f1', marginTop: 4 },
@@ -519,8 +679,9 @@ const s = StyleSheet.create({
   opBtnText: { color: '#1d4ed8', fontWeight: 'bold', fontSize: 16 },
 
   // Sensor
-  sensorHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  sensorHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#6366f1', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
+  addBtnGreen: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#10b981', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
   addBtnText: { color: 'white', fontSize: 13, fontWeight: '600' },
   paramCard: {
     backgroundColor: '#f8fafc', borderRadius: 10,
@@ -531,6 +692,59 @@ const s = StyleSheet.create({
   switchBox: { alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 4 },
   switchLabel: { fontSize: 11, color: '#64748b', marginBottom: 4, marginTop: 10 },
   chartConfig: { backgroundColor: '#eff6ff', borderRadius: 8, padding: 10, marginTop: 8 },
+
+  // Automation
+  emptyState: {
+    alignItems: 'center', paddingVertical: 32,
+    backgroundColor: '#f8fafc', borderRadius: 12,
+    borderWidth: 1, borderColor: '#e2e8f0',
+    borderStyle: 'dashed',
+  },
+  emptyIcon: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyTitle: { fontSize: 15, fontWeight: 'bold', color: '#475569', marginBottom: 6 },
+  emptyText: { fontSize: 13, color: '#94a3b8', textAlign: 'center' },
+  autoCard: {
+    backgroundColor: '#f8fafc', borderRadius: 12,
+    borderWidth: 1, borderColor: '#e2e8f0', padding: 14, marginBottom: 12,
+  },
+  autoCardHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 8,
+  },
+  autoCardBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#ede9fe', paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 20,
+  },
+  autoCardBadgeText: { fontSize: 12, fontWeight: '700', color: '#6366f1' },
+  autoDeleteBtn: {
+    padding: 6, borderRadius: 8, backgroundColor: '#fff1f2',
+  },
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  actionToggle: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
+    borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f8fafc',
+  },
+  actionToggleActive: {
+    borderColor: '#6366f1', backgroundColor: '#ede9fe',
+  },
+  actionToggleEmailActive: {
+    borderColor: '#10b981', backgroundColor: '#ecfdf5',
+  },
+  actionDot: {
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: '#cbd5e1',
+  },
+  actionDotActive: { backgroundColor: '#6366f1' },
+  actionDotEmailActive: { backgroundColor: '#10b981' },
+  actionToggleText: { fontSize: 12, fontWeight: '600', color: '#94a3b8' },
+  actionToggleTextActive: { color: '#6366f1' },
+  actionToggleEmailText: { color: '#10b981' },
 
   // Footer
   footer: {
