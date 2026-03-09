@@ -12,7 +12,6 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
@@ -21,6 +20,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface SensorParam {
   id?: string;
@@ -74,6 +74,7 @@ export default function EditDeviceModal({
   setAutomationsList,
 }: EditDeviceModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('alat');
+  const insets = useSafeAreaInsets();
 
   const tabs: { key: TabType; label: string }[] = [
     { key: 'alat', label: 'Alat' },
@@ -110,7 +111,7 @@ export default function EditDeviceModal({
 
   return (
     <Modal visible={visible} animationType="slide">
-      <SafeAreaView style={s.container}>
+      <View style={[s.container, { paddingTop: insets.top }]}>
         {/* Header */}
         <View style={s.header}>
           <View style={{ flex: 1 }}>
@@ -185,7 +186,7 @@ export default function EditDeviceModal({
 
                       <Text style={s.label}>Jenis AWLR</Text>
                       <View style={s.picker}>
-                        <Picker selectedValue={formData.awlrJenis} onValueChange={v => setFormData({ ...formData, awlrJenis: v })}>
+                        <Picker selectedValue={formData.awlrJenis} onValueChange={v => setFormData({ ...formData, awlrJenis: v })} style={{ color: 'black' }}>
                           <Picker.Item label="Sungai" value="sungai" />
                           <Picker.Item label="Sumur" value="sumur" />
                         </Picker>
@@ -193,7 +194,7 @@ export default function EditDeviceModal({
 
                       <Text style={s.label}>Data Sensor AWLR</Text>
                       <View style={s.picker}>
-                        <Picker selectedValue={formData.awlrData} onValueChange={v => setFormData({ ...formData, awlrData: v })}>
+                        <Picker selectedValue={formData.awlrData} onValueChange={v => setFormData({ ...formData, awlrData: v })} style={{ color: 'black' }}>
                           <Picker.Item label="-- Pilih Sensor --" value="" />
                           {paramsList.map((p, i) => (
                             <Picker.Item key={i} label={`${p.label} (${p.chart_data})`} value={p.chart_data} />
@@ -203,7 +204,7 @@ export default function EditDeviceModal({
 
                       <Text style={s.label}>Pengurangan Data</Text>
                       <View style={s.picker}>
-                        <Picker selectedValue={formData.awlrStatusData} onValueChange={v => setFormData({ ...formData, awlrStatusData: v })}>
+                        <Picker selectedValue={formData.awlrStatusData} onValueChange={v => setFormData({ ...formData, awlrStatusData: v })} style={{ color: 'black' }}>
                           <Picker.Item label="Aktif" value="1" />
                           <Picker.Item label="Tidak Aktif" value="0" />
                         </Picker>
@@ -240,9 +241,9 @@ export default function EditDeviceModal({
               <View style={s.section}>
                 <Text style={s.sectionTitle}>Pengaturan Umum</Text>
 
-                <Text style={s.label}>Zona Waktu</Text>
-                <View style={s.picker}>
-                  <Picker selectedValue={formData.timezone} onValueChange={v => setFormData({ ...formData, timezone: v })}>
+                <Text style={[s.label, {color: 'black'}]}>Zona Waktu</Text>
+                <View style={s.picker }>
+                  <Picker selectedValue={formData.timezone} onValueChange={v => setFormData({ ...formData, timezone: v }) } style={{color: 'black'}}>
                     <Picker.Item label="WIB" value="WIB" />
                     <Picker.Item label="WITA" value="WITA" />
                     <Picker.Item label="WIT" value="WIT" />
@@ -251,7 +252,7 @@ export default function EditDeviceModal({
 
                 <Text style={s.label}>Status Alat</Text>
                 <View style={s.picker}>
-                  <Picker selectedValue={formData.statusAlat} onValueChange={v => setFormData({ ...formData, statusAlat: v })}>
+                  <Picker selectedValue={formData.statusAlat} onValueChange={v => setFormData({ ...formData, statusAlat: v })} style={{color: 'black'}}>
                     <Picker.Item label="Aktif" value="1" />
                     <Picker.Item label="Tidak Aktif" value="0" />
                   </Picker>
@@ -278,7 +279,7 @@ export default function EditDeviceModal({
 
                 <Text style={s.label}>Email</Text>
                 <TextInput
-                  style={s.input}
+                  style={[s.input, {color: 'black'}]}
                   value={formData.email || ''}
                   onChangeText={t => setFormData({ ...formData, email: t })}
                   placeholder="contoh@email.com"
@@ -288,7 +289,7 @@ export default function EditDeviceModal({
 
                 <Text style={s.label}>Masa Aktif Kartu (SIM)</Text>
                 <TextInput
-                  style={s.input}
+                  style={[s.input, {color: 'black'}]}
                   value={formData.masa_aktif || ''}
                   onChangeText={t => setFormData({ ...formData, masa_aktif: t })}
                   placeholder="YYYY-MM-DD"
@@ -296,7 +297,7 @@ export default function EditDeviceModal({
 
                 <Text style={s.label}>Masa Aktif Paket Internet</Text>
                 <TextInput
-                  style={s.input}
+                  style={[s.input, {color: 'black'}]}
                   value={formData.masa_paket || ''}
                   onChangeText={t => setFormData({ ...formData, masa_paket: t })}
                   placeholder="YYYY-MM-DD"
@@ -503,11 +504,12 @@ export default function EditDeviceModal({
                   </View>
 
                   {/* Parameter selector */}
-                  <Text style={s.label}>Parameter Sensor</Text>
+                  <Text style={[s.label, { color: 'black' }]}>Parameter Sensor</Text>
                   <View style={s.picker}>
                     <Picker
                       selectedValue={auto.parameter_name}
                       onValueChange={v => updateAutomation(idx, 'parameter_name', v)}
+                      style={{ color: 'black' }}
                     >
                       {paramsList.map((p, i) => (
                         <Picker.Item
@@ -526,11 +528,12 @@ export default function EditDeviceModal({
                   {/* Operator & Threshold row */}
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.label}>Kondisi</Text>
+                      <Text style={[s.label, { color: 'black' }]}>Kondisi</Text>
                       <View style={s.picker}>
                         <Picker
                           selectedValue={auto.operator}
                           onValueChange={v => updateAutomation(idx, 'operator', v)}
+                          style={{ color: 'black' }}
                         >
                           <Picker.Item label="> (Lebih dari)" value=">" />
                           <Picker.Item label="< (Kurang dari)" value="<" />
@@ -539,7 +542,7 @@ export default function EditDeviceModal({
                       </View>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.label}>Nilai Batas</Text>
+                      <Text style={[s.label, { color: 'black' }]}>Nilai Batas</Text>
                       <TextInput
                         style={[s.input, { textAlign: 'center' }]}
                         value={String(auto.threshold)}
@@ -551,7 +554,7 @@ export default function EditDeviceModal({
                   </View>
 
                   {/* Actions */}
-                  <Text style={s.label}>Aksi Notifikasi</Text>
+                  <Text style={[s.label, { color: 'black' }]}>Aksi Notifikasi</Text>
                   <View style={s.actionRow}>
                     <TouchableOpacity
                       style={[s.actionToggle, auto.send_notification && s.actionToggleActive]}
@@ -581,7 +584,7 @@ export default function EditDeviceModal({
         </ScrollView>
 
         {/* Footer */}
-        <View style={s.footer}>
+        <View style={[s.footer, { paddingBottom: insets.bottom + 16 }]}>
           <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
             <Text style={s.cancelText}>Batal</Text>
           </TouchableOpacity>
@@ -595,7 +598,7 @@ export default function EditDeviceModal({
             }
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
@@ -648,7 +651,7 @@ const s = StyleSheet.create({
   input: {
     backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0',
     borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
-    fontSize: 14, color: '#1e293b',
+    fontSize: 14, color: '#000000ff',
   },
   picker: {
     color: '#000000ff', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0',
@@ -748,7 +751,8 @@ const s = StyleSheet.create({
 
   // Footer
   footer: {
-    flexDirection: 'row', gap: 12, padding: 16,
+    flexDirection: 'row', gap: 12,
+    paddingHorizontal: 16, paddingTop: 16,
     backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#e2e8f0',
   },
   cancelBtn: {

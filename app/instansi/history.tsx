@@ -9,13 +9,13 @@ import {
   Dimensions,
   FlatList,
   Modal,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineChart } from 'react-native-chart-kit';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -23,6 +23,7 @@ const API_DATA_URL = `${process.env.EXPO_PUBLIC_API_DATA}`;
 const API_TOKEN_INTERNAL = `${process.env.EXPO_PUBLIC_API_TOKEN}`;
 
 export default function InstansiHistory() {
+  const insets = useSafeAreaInsets();
   const [loadingInit, setLoadingInit] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -178,7 +179,7 @@ export default function InstansiHistory() {
   const chartData = getChartData();
 
   return (
-    <SafeAreaView style={ss.container}>
+    <View style={[ss.container, { paddingTop: insets.top }]}>
       <View style={ss.header}>
         <Ionicons name="business-outline" size={20} color="#3b82f6" />
         <View style={{ marginLeft: 10 }}>
@@ -316,7 +317,7 @@ export default function InstansiHistory() {
 
       {/* Download Modal */}
       <Modal visible={showDownloadModal} animationType="slide" onRequestClose={() => setShowDownloadModal(false)}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+        <View style={{ flex: 1, backgroundColor: '#f8fafc', paddingTop: insets.top }}>
           <View style={ss.modalHeader}>
             <Text style={ss.modalTitle}>Pratinjau {selectedFormat.toUpperCase()}</Text>
             <TouchableOpacity onPress={() => setShowDownloadModal(false)}>
@@ -349,7 +350,7 @@ export default function InstansiHistory() {
                   />
                 </View>
               </ScrollView>
-              <View style={ss.modalFooter}>
+              <View style={[ss.modalFooter, { paddingBottom: insets.bottom + 16 }]}>
                 <TouchableOpacity style={ss.btnCancel} onPress={() => setShowDownloadModal(false)}>
                   <Text style={{ color: '#475569', fontWeight: '600' }}>Batal</Text>
                 </TouchableOpacity>
@@ -369,9 +370,9 @@ export default function InstansiHistory() {
               <Text style={{ color: '#94a3b8', marginTop: 12 }}>Tidak ada data</Text>
             </View>
           )}
-        </SafeAreaView>
+        </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

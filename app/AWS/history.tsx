@@ -9,13 +9,13 @@ import {
   Dimensions,
   FlatList,
   Modal,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineChart } from 'react-native-chart-kit';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -26,6 +26,7 @@ const API_DATA_URL = `${process.env.EXPO_PUBLIC_API_DATA}`;
 const API_TOKEN_INTERNAL = `${process.env.EXPO_PUBLIC_API_TOKEN}`;
 
 export default function AnalyticsPage() {
+  const insets = useSafeAreaInsets();
   // --- STATE UI ---
   const [loadingInit, setLoadingInit] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
@@ -240,7 +241,7 @@ export default function AnalyticsPage() {
   const chartData = getChartData();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* HEADER */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Analitik Sensor</Text>
@@ -482,7 +483,7 @@ export default function AnalyticsPage() {
         animationType="slide"
         onRequestClose={() => setShowDownloadModal(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
           <View style={styles.modalHeader}>
             <View>
               <Text style={styles.modalTitle}>Pratinjau {selectedFormat.toUpperCase()}</Text>
@@ -553,7 +554,7 @@ export default function AnalyticsPage() {
             </View>
           )}
 
-          <View style={styles.modalFooter}>
+          <View style={[styles.modalFooter, { paddingBottom: insets.bottom + 16 }]}>
             <TouchableOpacity
               style={styles.btnCancel}
               onPress={() => setShowDownloadModal(false)}
@@ -565,7 +566,7 @@ export default function AnalyticsPage() {
                 backgroundColor: selectedFormat === 'excel' ? '#16a34a' : '#2563eb',
                 opacity: previewData.length > 0 ? 1 : 0.5
               }]}
-              onPress={previewData.length > 0 ? executeDownload : null}
+              onPress={previewData.length > 0 ? executeDownload : undefined}
               disabled={previewData.length === 0}
             >
               <Ionicons
@@ -578,9 +579,9 @@ export default function AnalyticsPage() {
               </Text>
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+        </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -910,7 +911,8 @@ const styles = StyleSheet.create({
 
   // MODAL FOOTER
   modalFooter: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
     flexDirection: 'row',
     gap: 12,
     borderTopWidth: 1,
