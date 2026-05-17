@@ -143,6 +143,12 @@ export default function DashboardScreen() {
   const [rainRunning, setRainRunning] = useState("-");
   const [rainInterval, setRainInterval] = useState(60); // Default 60 menit
 
+  // --- Display Mode Filter ---
+  type CardMode = 'live' | 'high' | 'low';
+  const [cardMode, setCardMode] = useState<CardMode>('live');
+  const [highVals, setHighVals] = useState<Record<string, number>>({});
+  const [lowVals, setLowVals] = useState<Record<string, number>>({});
+
   // Grafik states    
   const [selectedSensor, setSelectedSensor] = useState<HistorySensor | null>(null);
   const [timeInterval, setTimeInterval] = useState("hari");
@@ -359,6 +365,41 @@ export default function DashboardScreen() {
       fetchChartData();
     }
   }, [selectedSensor, timeInterval, customStartDate, customEndDate, fetchChartData]);
+
+  // --- Fetch Daily High / Low ---
+  const fetchDailyHighLow = useCallback(async () => {
+    if (!config || !config.device.id) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${apiToken}` };
+    const topicToParam = (topic: string) => topic.split('/').pop() || '';
+    const allParams = config.sensors.map(s => topicToParam(s.topic));
+    try {
+      const promises = allParams.flatMap(p => [
+        fetch(`${apiData}/api/get-data?device_id=${config.device.id}&jenis=${p}&tanggal=${todayStr}&value=high&mode=raw`, { headers }).then(r => r.json()).then(j => ({ p, mode: 'high', val: j.status && j.data?.length > 0 ? parseFloat(j.data[0].value) : null })),
+        fetch(`${apiData}/api/get-data?device_id=${config.device.id}&jenis=${p}&tanggal=${todayStr}&value=low&mode=raw`, { headers }).then(r => r.json()).then(j => ({ p, mode: 'low', val: j.status && j.data?.length > 0 ? parseFloat(j.data[0].value) : null })),
+      ]);
+      const results = await Promise.all(promises);
+      const hv: Record<string, number> = {};
+      const lv: Record<string, number> = {};
+      results.forEach(({ p, mode, val }) => {
+        if (val !== null) {
+          const topic = config.sensors.find(s => topicToParam(s.topic) === p)?.topic || p;
+          if (mode === 'high') hv[topic] = val;
+          else lv[topic] = val;
+        }
+      });
+      setHighVals(hv);
+      setLowVals(lv);
+    } catch (e) { console.error('daily hl err', e); }
+  }, [config, apiData, apiToken]);
+
+  useEffect(() => {
+    if (config && config.device.id) {
+      fetchDailyHighLow();
+      const id = setInterval(fetchDailyHighLow, 10 * 60 * 1000);
+      return () => clearInterval(id);
+    }
+  }, [config, fetchDailyHighLow]);
 
   // --- Fetch Offline Data (Fallback) ---
   const fetchLastKnownData = useCallback(async () => {
@@ -638,6 +679,13 @@ export default function DashboardScreen() {
 
   const selectedSensorLabel = selectedSensor ? selectedSensor.label : 'Pilih Sensor';
 
+  // --- Display Value helper ---
+  const getDisplayVal = useCallback((topic: string): number | undefined => {
+    if (cardMode === 'high') return highVals[topic];
+    if (cardMode === 'low') return lowVals[topic];
+    return sensorValues[topic];
+  }, [cardMode, highVals, lowVals, sensorValues]);
+
   const insets = useSafeAreaInsets();
 
   return (
@@ -681,6 +729,19 @@ export default function DashboardScreen() {
         </View>
       )}
 
+      {/* ── Filter Bar ── */}
+      <View style={styles.filterBar}>
+        {([['live', 'Live'], ['high', 'Tertinggi Hari Ini'], ['low', 'Terendah Hari Ini']] as [CardMode, string][]).map(([mode, label]) => (
+          <TouchableOpacity
+            key={mode}
+            style={[styles.filterPill, cardMode === mode && styles.filterPillActive]}
+            onPress={() => setCardMode(mode)}
+          >
+            <Text style={[styles.filterPillText, cardMode === mode && styles.filterPillTextActive]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <ScrollView
         style={[styles.scrollView, isInitialLoad && styles.hiddenScrollView]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#06b6d4']} />}
@@ -694,7 +755,7 @@ export default function DashboardScreen() {
                 <Text style={styles.tempLabel}>Suhu Udara</Text>
                 <View style={styles.tempValueContainer}>
                   <Text style={styles.tempValue}>
-                    {isInitialLoad || getVal(mainTemp.topic) === undefined ? '-' : getVal(mainTemp.topic)!.toFixed(1)}
+                    {isInitialLoad || getDisplayVal(mainTemp.topic) === undefined ? '-' : getDisplayVal(mainTemp.topic)!.toFixed(1)}
                   </Text>
                   <Text style={styles.tempUnit}>{mainTemp.unit}</Text>
                 </View>
@@ -706,7 +767,7 @@ export default function DashboardScreen() {
                 <Text style={styles.tempLabel}>Kelembapan</Text>
                 <View style={styles.tempValueContainer}>
                   <Text style={styles.tempValue}>
-                    {isInitialLoad || getVal(humidity.topic) === undefined ? '-' : getVal(humidity.topic)!.toFixed(1)}
+                    {isInitialLoad || getDisplayVal(humidity.topic) === undefined ? '-' : getDisplayVal(humidity.topic)!.toFixed(1)}
                   </Text>
                   <Text style={styles.tempUnit}>{humidity.unit}</Text>
                 </View>
@@ -731,14 +792,14 @@ export default function DashboardScreen() {
                   </Animated.View>
                 </View>
                 <Text style={styles.compassDegree}>
-                  {isInitialLoad || getVal(windDir.topic) === undefined ? '-' : getVal(windDir.topic)}°
+                  {isInitialLoad || getDisplayVal(windDir.topic) === undefined ? '-' : getDisplayVal(windDir.topic)}°
                 </Text>
               </View>
             </View>
             <View style={styles.windSpeedSection}>
               <View style={styles.speedContainer}>
                 <Text style={styles.valueNumberangin}>
-                  {isInitialLoad || getVal(windSpd.topic) === undefined ? '-' : getVal(windSpd.topic)}
+                  {isInitialLoad || getDisplayVal(windSpd.topic) === undefined ? '-' : getDisplayVal(windSpd.topic)}
                   <Text style={styles.valueUnit}> {windSpd.unit}</Text>
                 </Text>
               </View>
@@ -773,7 +834,7 @@ export default function DashboardScreen() {
                 <Ionicons name="sunny" size={18} color="#f59e0b" />
               </View>
               <Text style={styles.valueNumber}>
-                {isInitialLoad || getVal(solar.topic) === undefined ? '-' : getVal(solar.topic)!.toFixed(0)}
+                {isInitialLoad || getDisplayVal(solar.topic) === undefined ? '-' : getDisplayVal(solar.topic)!.toFixed(0)}
                 <Text style={styles.valueUnit}> {solar.unit}</Text>
               </Text>
             </View>
@@ -785,7 +846,7 @@ export default function DashboardScreen() {
                 <Ionicons name="speedometer" size={18} color="#06b6d4" />
               </View>
               <Text style={styles.valueNumber}>
-                {isInitialLoad || getVal(pressure.topic) === undefined ? '-' : getVal(pressure.topic)!.toFixed(1)}
+                {isInitialLoad || getDisplayVal(pressure.topic) === undefined ? '-' : getDisplayVal(pressure.topic)!.toFixed(1)}
                 <Text style={styles.valueUnit}> {pressure.unit}</Text>
               </Text>
             </View>
@@ -930,6 +991,37 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
+  filterBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  filterPill: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 20,
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  filterPillActive: {
+    backgroundColor: '#06b6d4',
+    borderColor: '#06b6d4',
+  },
+  filterPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  filterPillTextActive: {
+    color: '#ffffff',
+  },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', padding: 16,
     backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0'

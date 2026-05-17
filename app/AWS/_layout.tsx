@@ -1,15 +1,13 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AWSLayout() {
-  const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
-  
-  const activeColor = '#007AFF'; 
-  const inactiveColor = '#8E8E93';
+
+  const activeColor = '#06b6d4';
+  const inactiveColor = '#9ca3af';
 
   return (
     <Tabs
@@ -17,76 +15,123 @@ export default function AWSLayout() {
         tabBarActiveTintColor: activeColor,
         tabBarInactiveTintColor: inactiveColor,
         tabBarStyle: {
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 5, // Tambahkan insets.bottom
-          height: 60 + (insets.bottom > 0 ? insets.bottom : 5), // Tinggi tab bar disesuaikan
+          backgroundColor: '#ffffff',
+          borderTopColor: '#e2e8f0',
+          borderTopWidth: 1,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 6,
+          height: 62 + (insets.bottom > 0 ? insets.bottom : 6),
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOpacity: 0.06,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: -2 },
         },
-        headerShown: true,
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '600',
+          marginBottom: 2,
+        },
+        headerShown: false,
       }}
     >
       {/* MENU 1: DASHBOARD */}
       <Tabs.Screen
         name="index"
         options={{
-          headerShown: false,
-          title: '',
+          title: 'Home',
           tabBarLabel: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? 'home' : 'home-outline'} 
-              size={24} 
-              color={color} 
+            <Ionicons
+              name={focused ? 'home' : 'home-outline'}
+              size={23}
+              color={color}
             />
           ),
         }}
       />
 
-      {/* MENU 2: MONITORING */}
-      
+      {/* MENU 2: WIND ROSE */}
+      <Tabs.Screen
+        name="wind-rose"
+        options={{
+          title: 'Wind Rose',
+          tabBarLabel: 'Wind Rose',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'analytics' : 'analytics-outline'}
+              size={23}
+              color={color}
+            />
+          ),
+        }}
+      />
 
-      {/* MENU 3: HISTORY */}
+
+      <Tabs.Screen
+        name="forecast"
+        options={{ href: null,
+          title: 'Cuaca',
+         }}
+      />
+
+      {/* MENU 3: FORECAST */}
+      {/* <Tabs.Screen
+        name="forecast"
+        options={{
+          title: 'Cuaca',
+          tabBarLabel: 'Cuaca', 
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'partly-sunny' : 'partly-sunny-outline'}
+              size={23}
+              color={color}
+            />
+          ),
+        }}
+      /> */}
+
+      {/* MENU 4: HISTORY */}
       <Tabs.Screen
         name="history"
         options={{
-          headerShown: false,
-          title: 'Riwayat Data',
+          title: 'Riwayat',
           tabBarLabel: 'Riwayat',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? 'list' : 'list-outline'} 
-              size={24} 
-              color={color} 
+            <Ionicons
+              name={focused ? 'bar-chart' : 'bar-chart-outline'}
+              size={23}
+              color={color}
             />
           ),
         }}
       />
 
+      {/* MENU 5: POWER */}
       <Tabs.Screen
         name="power"
         options={{
-          headerShown: false,
-          title: 'Live Monitor',
+          title: 'Power',
           tabBarLabel: 'Power',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? 'pulse' : 'pulse-outline'} 
-              size={24} 
-              color={color} 
+            <Ionicons
+              name={focused ? 'pulse' : 'pulse-outline'}
+              size={23}
+              color={color}
             />
           ),
         }}
       />
- 
-      {/* MENU 4: SETTINGS */}
+
+      {/* MENU 6: AKUN */}
       <Tabs.Screen
         name="info"
         options={{
-          headerShown: false,
           title: 'Akun',
           tabBarLabel: 'Akun',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'person' : 'person-outline'}
-              size={24}
+              size={23}
               color={color}
             />
           ),

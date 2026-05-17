@@ -83,8 +83,8 @@ export default function AWLRDashboard() {
   const [unit, setUnit] = useState<'cm' | 'mm'>('cm');
 
   const mqttClient = useRef<mqtt.MqttClient | null>(null);
-  const dataFetchInterval = useRef<NodeJS.Timeout | null>(null);
-  const offlineTimerInterval = useRef<NodeJS.Timeout | null>(null);
+  const dataFetchInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const offlineTimerInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastMessageTime = useRef(Date.now());
   const hasFetchedOffline = useRef(false);
   const initialFetchDone = useRef(false);
@@ -130,7 +130,7 @@ export default function AWLRDashboard() {
       });
 
       const json = await res.json();
-      console.log('API Response:', json);
+   //   console.log('API Response:', json);
 
       if (json.status && json.data) {
         const sensorData = json.data.find(
@@ -148,7 +148,7 @@ export default function AWLRDashboard() {
           if (deviceData.device.statusData === '1') {
             const maxHeight = parseFloat(deviceData.device.max_height);
             newDistance = maxHeight - val;
-            console.log(`📐 API Data - Max Height: ${maxHeight}, Raw: ${val}, Calculated: ${newDistance}`);
+           // console.log(`📐 API Data - Max Height: ${maxHeight}, Raw: ${val}, Calculated: ${newDistance}`);
           }
 
           setDistance(newDistance >= 0 ? newDistance : 0);
@@ -162,7 +162,7 @@ export default function AWLRDashboard() {
           setLastUpdateTime(waktu);
         }
 
-        console.log('✅ API data updated successfully');
+     //   console.log('✅ API data updated successfully');
         hasFetchedOffline.current = true;
 
         // Simpan ke cache
@@ -201,7 +201,7 @@ export default function AWLRDashboard() {
           return;
         }
 
-        console.log('🔄 Fetching initial device config...');
+     //   console.log('🔄 Fetching initial device config...');
         const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'https://your-api-url.com';
 
         const res = await fetch(`${apiUrl}/api-app/user/awlr/ds.php`, {
@@ -211,7 +211,7 @@ export default function AWLRDashboard() {
         const json = await res.json();
 
         if (json.status) {
-          console.log('✅ Device config loaded:', json);
+       //   console.log('✅ Device config loaded:', json);
           setDeviceData(json);
           setDistance(json.initial.distance);
           setBattery(json.initial.battery);
@@ -869,12 +869,6 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#3b82f6',
     borderTopColor: 'transparent',
-    animationKeyframes: {
-      '0%': { transform: [{ rotate: '0deg' }] },
-      '100%': { transform: [{ rotate: '360deg' }] },
-    },
-    animationDuration: '1s',
-    animationIterationCount: 'infinite',
   },
   loadingText: {
     marginTop: 16,
@@ -1152,6 +1146,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+  },
+  batteryIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#d1fae5',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   cardLabel: {
     fontSize: 12,
