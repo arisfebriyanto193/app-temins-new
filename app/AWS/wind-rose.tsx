@@ -117,6 +117,7 @@ export default function WindRoseScreen() {
   const [bins, setBins] = useState<number[][]>(Array.from({ length: 16 }, () => Array(4).fill(0)));
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({ avg: 0, max: 0, dominant: 'N', calms: 0 });
+  const [windTopics, setWindTopics] = useState<{ aa?: string; ka?: string; ch?: string }>({});
 
   const apiUrl = process.env.EXPO_PUBLIC_API_URL;
   const apiData = process.env.EXPO_PUBLIC_API_DATA;
@@ -127,26 +128,38 @@ export default function WindRoseScreen() {
       const token = await AsyncStorage.getItem('user_token');
       if (!token) { router.replace('../'); return; }
       try {
-        const res = await fetch(`${apiUrl}/api-app/user/aws/history.php`, {
+        const res = await fetch(`${apiUrl}/api-app/user/aws/wind.php`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const json = await res.json();
-        if (json.status) { setDeviceId(json.device_id); setDeviceName(json.device_name); }
+        if (json.status) { 
+          setDeviceId(json.device_unique_id); 
+          setDeviceName(json.device_unique_id); 
+          setWindTopics(json.data || {});
+        }
       } catch (e) { console.error(e); }
     };
     load();
   }, []);
 
   const fetchWind = useCallback(async () => {
-    if (!deviceId) return;
+    if (!deviceId || !windTopics.aa || !windTopics.ka) return;
     setLoading(true);
     const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${apiToken}` };
     const base = `${apiData}/api/get-data?device_id=${deviceId}&mode=raw&periode=${period}`;
     try {
+      const aaKey = windTopics.aa?.split('/').pop();
+      const kaKey = windTopics.ka?.split('/').pop();
+      const chKey = windTopics.ch?.split('/').pop();
+
+      const chFetch = chKey
+        ? fetch(`${base}&jenis=${chKey}`, { headers }).then(r => r.json())
+        : Promise.resolve({ status: false, data: [] });
+
       const [dirJ, spdJ, chJ] = await Promise.all([
-        fetch(`${base}&jenis=aa`, { headers }).then(r => r.json()),
-        fetch(`${base}&jenis=ka`, { headers }).then(r => r.json()),
-        fetch(`${base}&jenis=ch`, { headers }).then(r => r.json()),
+        fetch(`${base}&jenis=${aaKey}`, { headers }).then(r => r.json()),
+        fetch(`${base}&jenis=${kaKey}`, { headers }).then(r => r.json()),
+        chFetch,
       ]);
       const dirData: Record<string, number> = {};
       const spdData: Record<string, number> = {};
@@ -160,7 +173,7 @@ export default function WindRoseScreen() {
         .filter(p => !isNaN(p.dir) && !isNaN(p.spd));
       setRawWindData(points);
     } catch (e) { console.error(e); } finally { setLoading(false); }
-  }, [deviceId, period, apiData, apiToken]);
+  }, [deviceId, period, apiData, apiToken, windTopics]);
 
   useEffect(() => { fetchWind(); }, [fetchWind]);
 
