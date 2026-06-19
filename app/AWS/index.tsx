@@ -209,12 +209,9 @@ export default function DashboardScreen() {
 
         const newConfig = { ...data, sensors: processedSensors };
         setConfig(newConfig);
-
-        const initials: Record<string, number> = {};
-        processedSensors.forEach((s: SensorData) => {
-          initials[s.topic] = parseFloat(s.value.toString());
-        });
-        setSensorValues(initials);
+        // TIDAK pre-populate sensorValues dari s.value di sini.
+        // s.value dari server sering bernilai 0 untuk sensor yang belum punya data nyata.
+        // Nilai akan diisi oleh fetchLastKnownData (data DB) atau MQTT real-time.
       }
     } catch (err) {
       console.error("Failed to load config", err);
@@ -252,7 +249,8 @@ export default function DashboardScreen() {
 
   // --- Smooth Wind Direction Animation ---
   const getVal = useCallback((topic: string): number | undefined => {
-    return sensorValues[topic];
+    const v = sensorValues[topic];
+    return (v !== undefined && !isNaN(v)) ? v : undefined;
   }, [sensorValues]);
 
   // Cari sensor arah angin untuk animasi
@@ -460,13 +458,17 @@ export default function DashboardScreen() {
       lastMsgTime.current = Date.now();
     }
 
+    // ── Preload: Langsung ambil data API agar nilai tampil segera ──
+    // Tidak menunggu timeout 30 detik. MQTT real-time akan override jika berhasil.
+    fetchLastKnownData();
+
     // Timeout: Tunggu untuk data MQTT
     const initialTimeout = setTimeout(() => {
       // If we never received data and it's not a long timeout device
       if (!hasReceivedData.current) {
         setConnectionStatus('OFFLINE');
         setLastUpdateTxt("Offline (API Data)");
-        fetchLastKnownData();
+        fetchLastKnownData(); // Refresh ulang jika masih belum ada MQTT
       }
     }, timeoutDuration);
 
@@ -600,7 +602,7 @@ export default function DashboardScreen() {
             if (diff < 0) diff = 0;
             setRain1h(diff.toFixed(1));
           } else {
-             setRain1h("0.0");
+             setRain1h('-');
           }
         } else {
           setRain1h('-');
@@ -680,10 +682,14 @@ export default function DashboardScreen() {
   const selectedSensorLabel = selectedSensor ? selectedSensor.label : 'Pilih Sensor';
 
   // --- Display Value helper ---
+  // Mengembalikan undefined jika nilai tidak ada atau NaN (sehingga UI tampilkan '-')
   const getDisplayVal = useCallback((topic: string): number | undefined => {
-    if (cardMode === 'high') return highVals[topic];
-    if (cardMode === 'low') return lowVals[topic];
-    return sensorValues[topic];
+    let val: number | undefined;
+    if (cardMode === 'high') val = highVals[topic];
+    else if (cardMode === 'low') val = lowVals[topic];
+    else val = sensorValues[topic];
+    // Perlakukan NaN sebagai undefined agar tampil '-'
+    return (val !== undefined && !isNaN(val)) ? val : undefined;
   }, [cardMode, highVals, lowVals, sensorValues]);
 
   const insets = useSafeAreaInsets();
@@ -877,8 +883,8 @@ export default function DashboardScreen() {
                       style={[
                         styles.batteryLevel,
                         {
-                          width: `${isInitialLoad || getVal(battery.topic) === undefined ? 0 : getBatteryPercent(getVal(battery.topic)!)}%`,
-                          backgroundColor: (getVal(battery.topic) ?? 0) < 11.5 ? '#ef4444' : '#22c55e'
+                          width: `${isInitialLoad || getDisplayVal(battery.topic) === undefined ? 0 : getBatteryPercent(getDisplayVal(battery.topic)!)}%`,
+                          backgroundColor: (getDisplayVal(battery.topic) ?? 12) < 11.5 ? '#ef4444' : '#22c55e'
                         }
                       ]}
                     />
@@ -886,9 +892,9 @@ export default function DashboardScreen() {
                   <View style={styles.batteryCap} />
                 </View>
                 <Text style={styles.batteryTextInfo}>
-                  {isInitialLoad || getVal(battery.topic) === undefined
+                  {isInitialLoad || getDisplayVal(battery.topic) === undefined
                     ? '-'
-                    : `${getBatteryPercent(getVal(battery.topic)!).toFixed(0)}% (${getVal(battery.topic)!.toFixed(1)} V)`}
+                    : `${getBatteryPercent(getDisplayVal(battery.topic)!).toFixed(0)}% (${getDisplayVal(battery.topic)!.toFixed(1)} V)`}
                 </Text>
               </View>
             </View>
